@@ -36,18 +36,47 @@ def test_ollama_работает_без_ключей(clean_env):
     assert payload["stream"] is False
 
 
-def test_ollama_поднимает_окно_контекста(clean_env):
-    """2048 токенов по умолчанию не вместят методику — она обрежется молча."""
+def test_окно_растёт_под_размер_промпта(clean_env):
+    """Короткому запросу — маленькое окно, методике на 10 тысяч токенов — большое."""
     os.environ["LLM_PROVIDER"] = "ollama"
 
-    _, _, payload = llm.build("методика", "сценарий", 6000)
+    _, _, мелкий = llm.build("коротко", "тоже коротко", 500)
+    _, _, крупный = llm.build("МЕТОДИКА" * 3000, "сценарий", 4000)
 
-    assert payload["options"]["num_ctx"] == 16384
-    assert payload["options"]["num_predict"] == 6000
+    assert мелкий["options"]["num_ctx"] == 4096
+    assert крупный["options"]["num_ctx"] == 16384
+    assert мелкий["options"]["num_predict"] == 500
 
-    os.environ["OLLAMA_CTX"] = "32768"
-    _, _, payload = llm.build("методика", "сценарий", 6000)
-    assert payload["options"]["num_ctx"] == 32768
+
+def test_шаг_с_запасом_по_max_tokens_не_раздувает_окно(clean_env):
+    """shotlist просит 8000 токенов ответа, а пишет около двух тысяч.
+
+    Заложить 8000 целиком — значит уехать с окна 8192 на 12288 и потерять
+    100% GPU на карте, где 14B и так впритык.
+    """
+    os.environ["LLM_PROVIDER"] = "ollama"
+
+    _, _, payload = llm.build("режиссёр раскадровки" * 20, "реплики" * 300, 8000)
+
+    assert payload["options"]["num_ctx"] == 8192
+    assert payload["options"]["num_predict"] == 8000       # ответ не режем
+
+
+def test_потолок_окна_соблюдается(clean_env):
+    os.environ.update({"LLM_PROVIDER": "ollama", "OLLAMA_CTX": "8192"})
+
+    _, _, payload = llm.build("МЕТОДИКА" * 3000, "сценарий", 4000)
+
+    assert payload["options"]["num_ctx"] == 8192
+
+
+def test_слишком_большой_промпт_громко_предупреждает(clean_env, capsys):
+    """Молчаливая обрезка задания — худший вид поломки: ошибки нет, ответ мимо."""
+    os.environ.update({"LLM_PROVIDER": "ollama", "OLLAMA_CTX": "4096"})
+
+    llm.build("МЕТОДИКА" * 3000, "сценарий", 1000)
+
+    assert "не помещается в окно" in capsys.readouterr().out
 
 
 def test_ollama_модель_и_адрес_настраиваются(clean_env):
