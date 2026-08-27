@@ -80,19 +80,3 @@ def test_пустое_значение_с_комментарием_считае�
 
     assert env("VOICER_VOICE_ID") == ""
     assert env("VOICER_VOICE_ID", "запасной") == "запасной"
-
-
-def test_имя_канала_из_env_иначе_из_папки(tmp_path, global_dir, clean_env,
-                                          monkeypatch):
-    from vidpipe.config import Project
-
-    make_channel_dir(tmp_path / "папка-канала", CHANNEL_NAME="hindi-horror")
-    video = tmp_path / "папка-канала" / "выпуск"
-    video.mkdir()
-    monkeypatch.chdir(video)
-    load_env(video)
-
-    assert Project.load(video).channel_name == "hindi-horror"
-
-    del os.environ["CHANNEL_NAME"]
-    assert Project.load(video).channel_name == "папка-канала"

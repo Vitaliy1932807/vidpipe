@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from .config import (CHANNEL_MARKER, GLOBAL_DIR, PACKAGE_ASSETS, Project,
-                     env, ffmpeg_bin, load_env)
+                     env, ffmpeg_bin, find_channel, load_env)
 from .steps import (assemble, clean, flow, review, script_gen, shotlist,
                     thumbnail, transcribe, tts)
 from . import __version__
@@ -60,10 +60,23 @@ def cmd_run(args) -> None:
     print(f"\n=== готово: {project.dir} ===")
 
 
-def make_channel(name: str, force: bool = False) -> None:
-    """Создаёт канал в текущей папке: `.vidpipe-channel` с .env и промптами,
-    рядом — пустой series.jsonl. Роликами канала становятся его подпапки."""
-    root = Path.cwd()
+def make_channel(name: str, root: str | Path | None = None,
+                 force: bool = False) -> None:
+    """Создаёт канал в папке `root` (по умолчанию текущей): `.vidpipe-channel`
+    с .env и промптами, рядом — пустой series.jsonl. Роликами канала
+    становятся его подпапки."""
+    root = Path(root).expanduser().resolve() if root else Path.cwd()
+    root.mkdir(parents=True, exist_ok=True)
+
+    # канал внутри канала работает (побеждает ближний), но почти всегда это
+    # промах — например, команду запустили в папке ролика, а не канала
+    outer = find_channel(root)
+    if outer and outer.parent != root:
+        print(f"[init] ВНИМАНИЕ: {root} уже внутри канала {outer.parent}.")
+        print("       Новый канал перекроет его для этой папки и её подпапок,")
+        print("       включая журнал серии. Если это не то, чего ты хочешь —")
+        print(f"       удали {root / CHANNEL_MARKER} и создай канал уровнем выше.")
+
     marker = root / CHANNEL_MARKER
     marker.mkdir(parents=True, exist_ok=True)
 
@@ -115,7 +128,7 @@ def cmd_init(args) -> None:
         return
 
     if args.channel:
-        make_channel(args.channel, force=args.force)
+        make_channel(args.channel, root=args.dir, force=args.force)
         return
 
     project = Project.load(args.dir)
@@ -149,7 +162,8 @@ def cmd_check(args) -> None:
         except SystemExit:
             print(f"  {name:20} НЕ НАЙДЕН")
 
-    print("\nнастройки канала:")
+    print("\nнастройки канала:" if project.channel
+          else "\nнастройки (глобальные, канала нет):")
     for key, default in (("DEFAULT_LANG", "русский"),
                          ("WORDS_PER_MIN", "150"),
                          ("WHISPER_LANG", "ru"),
@@ -221,7 +235,7 @@ def main() -> None:
                    help=f"создать {GLOBAL_DIR} с .env и промптами")
     i.add_argument("--channel", metavar="ИМЯ",
                    help=f"создать канал: {CHANNEL_MARKER}/ с .env и промптами "
-                        f"в текущей папке")
+                        f"в текущей папке (или в --dir)")
     i.add_argument("--style", action="store_true",
                    help="положить копию assets.md в папку проекта")
     i.set_defaults(func=cmd_init)

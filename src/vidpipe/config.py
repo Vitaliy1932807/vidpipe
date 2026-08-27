@@ -52,8 +52,13 @@ def find_channel(start: str | Path | None = None) -> Path | None:
 
 
 def load_env(start: str | Path | None = None) -> None:
-    """Глобальный ~/.vidpipe/.env, поверх него .env канала, поверх него
-    локальный ./.env. Ближний уровень перекрывает дальний."""
+    """Глобальный ~/.vidpipe/.env, поверх него .env канала, поверх него .env
+    папки ролика. Ближний уровень перекрывает дальний.
+
+    `start` — папка ролика (`--dir`), по умолчанию текущая. Ближний уровень —
+    именно она: .env посторонней папки, из которой запущена команда, не должен
+    перекрывать настройки канала, к которому ролик даже не относится.
+    """
     try:
         from dotenv import load_dotenv
     except ImportError:
@@ -62,7 +67,8 @@ def load_env(start: str | Path | None = None) -> None:
     channel = find_channel(start)
     if channel:
         load_dotenv(channel / ".env", override=True)
-    load_dotenv(Path.cwd() / ".env", override=True)
+    video = Path(start).expanduser().resolve() if start else Path.cwd()
+    load_dotenv(video / ".env", override=True)
 
 
 @dataclass
@@ -90,10 +96,24 @@ class Project:
 
     @property
     def channel_name(self) -> str:
-        """Имя из CHANNEL_NAME, иначе имя папки канала."""
+        """Имя из CHANNEL_NAME в .env САМОГО канала, иначе имя его папки.
+
+        Через os.environ читать нельзя: CHANNEL_NAME мог приехать с любого
+        уровня — из глобального конфига или из соседнего канала, — и тогда
+        канал назвался бы чужим именем. Ровно то, что check должен ловить.
+        """
         if not self.channel:
             return ""
-        return env("CHANNEL_NAME") or self.channel.parent.name
+        own = ""
+        try:
+            from dotenv import dotenv_values
+            own = (dotenv_values(self.channel / ".env").get("CHANNEL_NAME")
+                   or "").strip()
+        except ImportError:
+            pass
+        if own.startswith("#"):      # `CHANNEL_NAME=  # впиши имя` — не имя
+            own = ""
+        return own or self.channel.parent.name
 
     def __getattr__(self, item: str) -> Path:
         if item in FILES:
