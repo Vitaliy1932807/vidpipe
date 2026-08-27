@@ -200,10 +200,24 @@ def cmd_check(args) -> None:
         # дефолты — те же, что подставят шаги: и они, и check берут их из DEFAULTS
         print(f"  {key:20} {env(key) or 'НЕ ЗАДАН'}")
 
+    print("\nмодель:")
+    from .llm import build, provider
+    name = provider()
+    try:
+        url, _, payload = build("проверка", "проверка", 16)
+        print(f"  провайдер            {name}")
+        print(f"  модель               {payload.get('model', '?')}")
+        print(f"  адрес                {url}")
+    except SystemExit as e:
+        print(f"  провайдер            {name} — {e}")
+
     print("\nключи:")
-    for key in ("ANTHROPIC_API_KEY", "VOICER_API_KEY"):
+    нужные = ("VOICER_API_KEY",) if name != "anthropic" else ("ANTHROPIC_API_KEY", "VOICER_API_KEY")
+    for key in нужные:
         val = env(key)
         print(f"  {key:20} {'есть' if val else 'НЕТ'}")
+    if name != "anthropic":
+        print("  ANTHROPIC_API_KEY    не нужен: модель локальная")
 
     if env("VOICER_API_KEY"):
         from .steps.voicer import balance
