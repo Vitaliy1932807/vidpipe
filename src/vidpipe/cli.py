@@ -6,7 +6,8 @@ import shutil
 import sys
 from pathlib import Path
 
-from .config import GLOBAL_DIR, PACKAGE_ASSETS, Project, env, ffmpeg_bin, load_env
+from .config import (CHANNEL_MARKER, GLOBAL_DIR, PACKAGE_ASSETS, Project,
+                     env, ffmpeg_bin, load_env)
 from .steps import (assemble, clean, flow, review, script_gen, shotlist,
                     thumbnail, transcribe, tts)
 from . import __version__
@@ -59,6 +60,44 @@ def cmd_run(args) -> None:
     print(f"\n=== готово: {project.dir} ===")
 
 
+def make_channel(name: str, force: bool = False) -> None:
+    """Создаёт канал в текущей папке: `.vidpipe-channel` с .env и промптами,
+    рядом — пустой series.jsonl. Роликами канала становятся его подпапки."""
+    root = Path.cwd()
+    marker = root / CHANNEL_MARKER
+    marker.mkdir(parents=True, exist_ok=True)
+
+    target = marker / ".env"
+    if target.exists() and not force:
+        print(f"[init] {target} уже есть, не трогаю (--force чтобы перезаписать)")
+    else:
+        template = (PACKAGE_ASSETS / "env.example").read_text(encoding="utf-8-sig")
+        header = f"""# ============ Канал: {name} ============
+# Ключи API держи в глобальном .env — здесь только то, что отличает
+# этот канал: язык, темп речи, голос, модель whisper.
+CHANNEL_NAME={name}
+
+"""
+        target.write_text(header + template, encoding="utf-8")
+        print(f"[init] создан {target} — впиши язык, темп речи и голос канала")
+
+    for fname in ("script_engine.md", "assets.md"):
+        dst = marker / fname
+        if dst.exists() and not force:
+            print(f"[init] {dst} уже есть")
+        else:
+            shutil.copy(PACKAGE_ASSETS / fname, dst)
+            print(f"[init] создан {dst}")
+
+    journal = root / "series.jsonl"
+    if not journal.exists():
+        journal.touch()
+        print(f"[init] создан {journal} — журнал серии этого канала")
+
+    print(f"[init] канал «{name}»: {root}")
+    print("       ролики канала — подпапки здесь, они подхватят его настройки")
+
+
 def cmd_init(args) -> None:
     if args.global_config:
         GLOBAL_DIR.mkdir(parents=True, exist_ok=True)
@@ -73,6 +112,10 @@ def cmd_init(args) -> None:
             if not dst.exists():
                 shutil.copy(PACKAGE_ASSETS / name, dst)
                 print(f"[init] создан {dst}")
+        return
+
+    if args.channel:
+        make_channel(args.channel, force=args.force)
         return
 
     project = Project.load(args.dir)
@@ -91,6 +134,11 @@ def cmd_check(args) -> None:
     project = Project.load(args.dir)
     print(f"vidpipe {__version__}")
     print(f"папка проекта : {project.dir}")
+    if project.channel:
+        print(f"канал         : {project.channel_name}  ({project.channel_root})")
+    else:
+        print("канал         : не найден — работаю на глобальном конфиге")
+        print("                (создать: vidpipe init --channel ИМЯ)")
     print(f"глобальный конфиг: {GLOBAL_DIR}"
           f"{'' if GLOBAL_DIR.exists() else '  (нет — vidpipe init --global)'}")
 
@@ -101,8 +149,17 @@ def cmd_check(args) -> None:
         except SystemExit:
             print(f"  {name:20} НЕ НАЙДЕН")
 
+    print("\nнастройки канала:")
+    for key, default in (("DEFAULT_LANG", "русский"),
+                         ("WORDS_PER_MIN", "150"),
+                         ("WHISPER_LANG", "ru"),
+                         ("FW_MODEL_SIZE", "medium"),
+                         ("VOICER_VOICE_ID", "")):
+        val = env(key, default)
+        print(f"  {key:20} {val or 'НЕ ЗАДАН'}")
+
     print("\nключи:")
-    for key in ("ANTHROPIC_API_KEY", "VOICER_API_KEY", "VOICER_VOICE_ID"):
+    for key in ("ANTHROPIC_API_KEY", "VOICER_API_KEY"):
         val = env(key)
         print(f"  {key:20} {'есть' if val else 'НЕТ'}")
 
@@ -139,8 +196,6 @@ def cmd_check(args) -> None:
 
 
 def main() -> None:
-    load_env()
-
     ap = argparse.ArgumentParser(
         prog="vidpipe",
         description=f"vidpipe {__version__}. Конвейер: тема -> сценарий -> озвучка "
@@ -159,10 +214,14 @@ def main() -> None:
                    help="разворачивать числа в слова (только именительный падеж)")
     r.set_defaults(func=cmd_run)
 
-    i = sub.add_parser("init", parents=[common], help="создать prompt.md или глобальный конфиг")
+    i = sub.add_parser("init", parents=[common],
+                   help="создать prompt.md, канал или глобальный конфиг")
     i.add_argument("--topic", "-t", help="тема ролика")
     i.add_argument("--global", dest="global_config", action="store_true",
                    help=f"создать {GLOBAL_DIR} с .env и промптами")
+    i.add_argument("--channel", metavar="ИМЯ",
+                   help=f"создать канал: {CHANNEL_MARKER}/ с .env и промптами "
+                        f"в текущей папке")
     i.add_argument("--style", action="store_true",
                    help="положить копию assets.md в папку проекта")
     i.set_defaults(func=cmd_init)
@@ -199,6 +258,8 @@ def main() -> None:
     if not getattr(args, "func", None):
         ap.print_help()
         return
+    # только теперь известен --dir: канал ищем от папки ролика, а не от текущей
+    load_env(getattr(args, "dir", None))
     args.func(args)
 
 

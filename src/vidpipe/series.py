@@ -4,7 +4,8 @@
 самый вероятный ход. Поэтому список уже использованных приёмов ведётся вне
 модели и подаётся ей как запрет.
 
-Хранится в JSONL рядом с папками роликов — по строке на выпуск.
+Хранится в JSONL на уровне канала, рядом с папками его роликов — по строке
+на выпуск. Каждый канал ведёт свой журнал.
 """
 from __future__ import annotations
 
@@ -38,9 +39,13 @@ EXTRACT = """Тебе дают сценарий. Опиши его приёмы 
 
 
 def series_path(project) -> Path:
-    """По умолчанию — рядом с папками роликов, то есть на уровень выше."""
+    """Журнал канала: рядом с папкой `.vidpipe-channel`. Если канала нет —
+    как раньше, на уровень выше папки ролика."""
     custom = env("SERIES_FILE")
-    return Path(custom).expanduser() if custom else project.dir.parent / "series.jsonl"
+    if custom:
+        return Path(custom).expanduser()
+    root = getattr(project, "channel_root", None) or project.dir.parent
+    return root / "series.jsonl"
 
 
 def load(project, limit: int) -> list[dict]:

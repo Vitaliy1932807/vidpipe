@@ -268,7 +268,10 @@ def preflight(project, step: str) -> None:
 def cmd_doctor(args) -> None:
     from .config import Project
     project = Project.load(args.dir)
-    print(f"проект: {project.dir}\n")
+    print(f"проект: {project.dir}")
+    print(f"канал : {project.channel_name} ({project.channel_root})"
+          if project.channel else "канал : нет — глобальные настройки")
+    print()
 
     total_stop = 0
     for name, fn in ARTIFACTS:
