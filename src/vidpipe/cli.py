@@ -158,19 +158,17 @@ def cmd_check(args) -> None:
     print("\nресурсы:")
     for name in ("script_engine.md", "assets.md"):
         try:
-            print(f"  {name:20} {project.resource_source(name):10} {project.resource(name)}")
+            path, source = project.resolved(name)
+            print(f"  {name:20} {source:10} {path}")
         except SystemExit:
             print(f"  {name:20} НЕ НАЙДЕН")
 
     print("\nнастройки канала:" if project.channel
           else "\nнастройки (глобальные, канала нет):")
-    for key, default in (("DEFAULT_LANG", "русский"),
-                         ("WORDS_PER_MIN", "150"),
-                         ("WHISPER_LANG", "ru"),
-                         ("FW_MODEL_SIZE", "medium"),
-                         ("VOICER_VOICE_ID", "")):
-        val = env(key, default)
-        print(f"  {key:20} {val or 'НЕ ЗАДАН'}")
+    for key in ("DEFAULT_LANG", "WORDS_PER_MIN", "WHISPER_LANG",
+                "FW_MODEL_SIZE", "VOICER_VOICE_ID"):
+        # дефолты — те же, что подставят шаги: и они, и check берут их из DEFAULTS
+        print(f"  {key:20} {env(key) or 'НЕ ЗАДАН'}")
 
     print("\nключи:")
     for key in ("ANTHROPIC_API_KEY", "VOICER_API_KEY"):

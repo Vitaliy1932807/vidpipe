@@ -22,6 +22,18 @@ GLOBAL_DIR = Path(
 )
 CHANNEL_MARKER = ".vidpipe-channel"
 
+# Дефолты, которые читаются больше чем из одного места или показываются в
+# check. Держим их здесь, иначе шаг и check однажды разойдутся в значениях,
+# и check будет уверенно показывать не то, с чем работает конвейер.
+DEFAULTS = {
+    "DEFAULT_LANG": "русский",
+    "DEFAULT_DURATION_MIN": "10",
+    "WORDS_PER_MIN": "150",
+    "SCRIPT_MAX_TOKENS": "16000",
+    "WHISPER_LANG": "ru",
+    "FW_MODEL_SIZE": "medium",
+}
+
 FILES = {
     "prompt": "prompt.md",
     "script": "script.md",
@@ -126,31 +138,32 @@ class Project:
         p.mkdir(exist_ok=True)
         return p
 
-    def resource(self, name: str) -> Path:
+    def resolved(self, name: str) -> tuple[Path, str]:
         """Ищем ресурс: папка ролика -> канал -> глобальный -> встроенный.
 
         Так один и тот же скилл работает во всех проектах, канал задаёт свою
         методику и стиль, а конкретный ролик может переопределить и это,
         положив файл рядом с собой.
+
+        Возвращаем путь вместе с уровнем: почти всем вызывающим нужно и то,
+        и другое, а цепочку тогда достаточно пройти один раз.
         """
-        chain = [self.dir / name, self.dir / "prompts" / name]
+        chain = [(self.dir / name, "локальный"),
+                 (self.dir / "prompts" / name, "локальный")]
         if self.channel:
-            chain.append(self.channel / name)
-        chain += [GLOBAL_DIR / name, PACKAGE_ASSETS / name]
-        for candidate in chain:
+            chain.append((self.channel / name, "канал"))
+        chain += [(GLOBAL_DIR / name, "глобальный"),
+                  (PACKAGE_ASSETS / name, "встроенный")]
+        for candidate, source in chain:
             if candidate.exists():
-                return candidate
+                return candidate, source
         raise SystemExit(f"[config] не найден ресурс {name}")
 
+    def resource(self, name: str) -> Path:
+        return self.resolved(name)[0]
+
     def resource_source(self, name: str) -> str:
-        path = self.resource(name)
-        if path.is_relative_to(PACKAGE_ASSETS):
-            return "встроенный"
-        if self.channel and path.is_relative_to(self.channel):
-            return "канал"
-        if path.is_relative_to(GLOBAL_DIR):
-            return "глобальный"
-        return "локальный"
+        return self.resolved(name)[1]
 
 
 def read_text(path: Path) -> str:
@@ -161,6 +174,8 @@ def read_text(path: Path) -> str:
 
 
 def env(key: str, default: str | None = None, required: bool = False) -> str:
+    if default is None:
+        default = DEFAULTS.get(key)
     val = os.getenv(key, default)
     # dotenv не срезает комментарий у ПУСТОГО значения: `KEY=   # пояснение`
     # приезжает как "# пояснение". Считаем такое незаполненным.
@@ -176,7 +191,14 @@ def env(key: str, default: str | None = None, required: bool = False) -> str:
     return val or ""
 
 
-def env_int(key: str, default: int) -> int:
+def env_int(key: str, default: int | None = None) -> int:
+    """Без явного default значение берётся из DEFAULTS.
+
+    Ключа нет ни там, ни в вызове — это опечатка в имени, и KeyError о ней
+    скажет громко, вместо того чтобы тихо подставить ноль.
+    """
+    if default is None:
+        default = int(DEFAULTS[key])
     try:
         return int(os.getenv(key, "") or default)
     except ValueError:

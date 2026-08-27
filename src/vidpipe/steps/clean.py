@@ -111,6 +111,6 @@ def run(project, force: bool = False, expand_numbers: bool = False) -> None:
     out = clean(src, expand_numbers=expand_numbers)
     project.voice_txt.write_text(out, encoding="utf-8")
     words = len(out.split())
-    wpm = env_int("WORDS_PER_MIN", 150)
+    wpm = env_int("WORDS_PER_MIN")
     print(f"[clean] {project.voice_txt.name}: {len(out)} симв., ~{words} слов, "
           f"~{words / wpm:.1f} мин озвучки")

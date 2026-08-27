@@ -49,8 +49,8 @@ REVISER = """Ты — автор сценария. Тебе дают метод�
 def _facts(project, text: str) -> str:
     """Детерминированные измерения — их критик не считает, а получает готовыми."""
     words = len(text.split())
-    wpm = env_int("WORDS_PER_MIN", 150)
-    target = env_int("DEFAULT_DURATION_MIN", 10)
+    wpm = env_int("WORDS_PER_MIN")
+    target = env_int("DEFAULT_DURATION_MIN")
     minutes = words / wpm
     drift = (minutes - target) / target * 100 if target else 0
     return (f"Измерено автоматически (это факты, пересчитывать не нужно):\n"
@@ -78,7 +78,7 @@ def revise(methodology: str, text: str, issues: list[dict]) -> str:
     user = (f"МЕТОДИКА КАНАЛА:\n\n{methodology}\n\n"
             f"{'=' * 60}\n\nЗАМЕЧАНИЯ РЕДАКТОРА:\n\n{listed}\n\n"
             f"{'=' * 60}\n\nТЕКУЩИЙ СЦЕНАРИЙ:\n\n{text}")
-    return complete(REVISER, user, max_tokens=env_int("SCRIPT_MAX_TOKENS", 16000))
+    return complete(REVISER, user, max_tokens=env_int("SCRIPT_MAX_TOKENS"))
 
 
 def _report(passes: list[dict], final: dict) -> str:

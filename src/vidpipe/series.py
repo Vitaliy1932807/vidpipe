@@ -44,7 +44,7 @@ def series_path(project) -> Path:
     custom = env("SERIES_FILE")
     if custom:
         return Path(custom).expanduser()
-    root = getattr(project, "channel_root", None) or project.dir.parent
+    root = project.channel_root or project.dir.parent
     return root / "series.jsonl"
 
 

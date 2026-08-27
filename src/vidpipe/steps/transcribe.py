@@ -52,7 +52,7 @@ def via_whisper_cpp(wav: Path, out_srt: Path, lang: str) -> None:
 def via_faster_whisper(audio: Path, out_srt: Path, lang: str) -> None:
     from faster_whisper import WhisperModel
 
-    size = env("FW_MODEL_SIZE", "medium")
+    size = env("FW_MODEL_SIZE")
     device = env("FW_DEVICE", "cpu")
     compute = env("FW_COMPUTE_TYPE", "int8")
     print(f"[srt] faster-whisper: {size} / {device} / {compute}")
@@ -107,7 +107,7 @@ def run(project, force: bool = False) -> None:
         print(f"[srt] пропуск, {project.srt.name} уже есть")
         return
 
-    lang = env("WHISPER_LANG", "ru")
+    lang = env("WHISPER_LANG")
     backend = env("WHISPER_BACKEND", "faster_whisper")
 
     if backend == "whisper_cpp":

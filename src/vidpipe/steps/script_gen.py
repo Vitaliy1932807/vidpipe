@@ -43,8 +43,8 @@ def make_prompt(project, topic: str, force: bool = False) -> None:
         PROMPT_TEMPLATE.format(
             topic=topic,
             fmt=env("DEFAULT_FORMAT", "документальная история"),
-            duration=env_int("DEFAULT_DURATION_MIN", 10),
-            lang=env("DEFAULT_LANG", "русский"),
+            duration=env_int("DEFAULT_DURATION_MIN"),
+            lang=env("DEFAULT_LANG"),
             tone=env("DEFAULT_TONE", "сдержанный, аналитический"),
             audience=env("DEFAULT_AUDIENCE", "взрослые, интересуются историей"),
         ),
@@ -69,8 +69,8 @@ def run(project, force: bool = False, topic: str | None = None) -> None:
     print(f"[script] методика: {engine} ({project.resource_source('script_engine.md')})")
     system = read_text(engine)
     brief = read_text(project.prompt)
-    duration = env_int("DEFAULT_DURATION_MIN", 10)
-    wpm = env_int("WORDS_PER_MIN", 150)
+    duration = env_int("DEFAULT_DURATION_MIN")
+    wpm = env_int("WORDS_PER_MIN")
 
     avoid = series.constraints(project)
     if avoid:
@@ -86,7 +86,7 @@ def run(project, force: bool = False, topic: str | None = None) -> None:
         f"описаний картинки и комментариев к структуре."
     )
 
-    text = complete(system, user, max_tokens=env_int("SCRIPT_MAX_TOKENS", 16000))
+    text = complete(system, user, max_tokens=env_int("SCRIPT_MAX_TOKENS"))
     project.script.write_text(text.strip() + "\n", encoding="utf-8")
     words = len(text.split())
     print(f"[script] {project.script.name}: ~{words} слов, ~{words / wpm:.1f} мин")

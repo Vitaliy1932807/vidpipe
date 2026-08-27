@@ -65,8 +65,8 @@ def check_script(project) -> list[Issue]:
     text = read_text(project.script)
     out: list[Issue] = []
     words = len(text.split())
-    wpm = env_int("WORDS_PER_MIN", 150)
-    target = env_int("DEFAULT_DURATION_MIN", 10)
+    wpm = env_int("WORDS_PER_MIN")
+    target = env_int("DEFAULT_DURATION_MIN")
     minutes = words / wpm
     if abs(minutes - target) / target > 0.25:
         out.append(Issue("warn", f"объём {words} слов ≈ {minutes:.1f} мин, "
@@ -106,7 +106,7 @@ def check_voice_mp3(project) -> list[Issue]:
     if dur and project.voice_txt.exists():
         words = len(read_text(project.voice_txt).split())
         real = words / (dur / 60)
-        setting = env_int("WORDS_PER_MIN", 150)
+        setting = env_int("WORDS_PER_MIN")
         if abs(real - setting) / setting > 0.15:
             out.append(Issue("warn",
                              f"реальный темп {real:.0f} слов/мин, "
