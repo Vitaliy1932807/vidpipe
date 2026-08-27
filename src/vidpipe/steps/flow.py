@@ -62,6 +62,18 @@ def run(project, force: bool = False) -> None:
     if not rows:
         raise SystemExit("[flow] shotlist.csv пуст")
 
+    # Раскадровка могла приехать из чужого инструмента: колонки другие, и без
+    # проверки шаг падал бы посреди работы голым KeyError.
+    нужны = {"scene", "duration", "visual"}
+    не_хватает = нужны - set(rows[0])
+    if не_хватает:
+        raise SystemExit(
+            f"[flow] в {project.shotlist.name} нет колонок: "
+            f"{', '.join(sorted(не_хватает))}\n"
+            f"  есть: {', '.join(rows[0])}\n"
+            f"  пересобрать: vidpipe run -s shotlist --force"
+        )
+
     assets = load_assets(project)
     print(f"[flow] {len(rows)} сцен, блоки ассетов: {', '.join(assets) or 'нет'}")
 
@@ -73,8 +85,11 @@ def run(project, force: bool = False) -> None:
         payload = "\n\n".join(
             f"Сцена {r['scene']} ({r['duration']} с):\n"
             f"Визуал: {r['visual']}\n"
-            f"Крупность: {r['shot_type']} | Движение: {r['motion']} | "
-            f"Атмосфера: {r['mood']}"
+            # у раскадровки из чужого инструмента крупность и движение могут
+            # лежать в одной колонке camera — не выбрасываем её
+            f"Крупность: {r.get('shot_type') or r.get('camera', '—')} | "
+            f"Движение: {r.get('motion') or r.get('camera', '—')} | "
+            f"Атмосфера: {r.get('mood', '—')}"
             for r in chunk
         )
         for r in complete_json(SYSTEM, payload, max_tokens=8000):
@@ -94,9 +109,9 @@ def run(project, force: bool = False) -> None:
             "start": r["start"],
             "end": r["end"],
             "duration": float(r["duration"]),
-            "narration": r["narration"],
+            "narration": r.get("narration", r.get("beat", "")),
             "prompt": gen.get("prompt", ""),
-            "camera": gen.get("camera", r["motion"]),
+            "camera": gen.get("camera", r.get("motion", r.get("camera", ""))),
             "style": assets.get("STYLE", ""),
             "environment": assets.get("ENV", ""),
             "negative": assets.get("NEGATIVE", ""),
