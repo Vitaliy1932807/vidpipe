@@ -60,6 +60,41 @@ def cmd_run(args) -> None:
     print(f"\n=== готово: {project.dir} ===")
 
 
+def channel_env(name: str) -> str:
+    """Заготовка .env для канала: только то, что отличает канал от других.
+
+    Все настройки закомментированы намеренно. Строка в .env канала перекрывает
+    глобальную, а пустое значение перекрывает её пустотой: копия целого шаблона
+    стирала бы ключи и сбрасывала настройки whisper и сборки. Поэтому создание
+    канала не меняет поведение ничего — его меняет только правка этого файла.
+    """
+    return f"""# ============ Канал: {name} ============
+# Здесь только то, что отличает ЭТОТ канал. Ключи API, модель Claude,
+# настройки whisper и сборки видео берутся из ~/.vidpipe/.env.
+#
+# Правило: пустых строк вида KEY= здесь быть не должно. Пустое значение не
+# «наследует» глобальное, а затирает его. Не нужна настройка — оставь строку
+# закомментированной.
+CHANNEL_NAME={name}
+
+# --- язык и темп речи ---
+# DEFAULT_LANG=Hindi             # как назвать язык в промпте: Hindi / русский / English
+# WORDS_PER_MIN=147              # 147 хинди, 150 русский, 140 английский
+
+# --- субтитры ---
+# WHISPER_LANG=hi                # ru / hi / en
+# FW_MODEL_SIZE=large-v3         # для хинди нужен large-v3, для ru/en хватает medium
+
+# --- голос канала (найти: vidpipe voices --lang ru) ---
+# VOICER_VOICE_ID=
+# VOICER_PUBLIC_OWNER_ID=        # только для нестандартных голосов
+# VOICER_SPEED=1.0               # 0.7-1.2
+
+# --- память серии ---
+# SERIES_DEPTH=5                 # сколько прошлых выпусков считать запретом на повтор
+"""
+
+
 def make_channel(name: str, root: str | Path | None = None,
                  force: bool = False) -> None:
     """Создаёт канал в папке `root` (по умолчанию текущей): `.vidpipe-channel`
@@ -84,15 +119,10 @@ def make_channel(name: str, root: str | Path | None = None,
     if target.exists() and not force:
         print(f"[init] {target} уже есть, не трогаю (--force чтобы перезаписать)")
     else:
-        template = (PACKAGE_ASSETS / "env.example").read_text(encoding="utf-8-sig")
-        header = f"""# ============ Канал: {name} ============
-# Ключи API держи в глобальном .env — здесь только то, что отличает
-# этот канал: язык, темп речи, голос, модель whisper.
-CHANNEL_NAME={name}
-
-"""
-        target.write_text(header + template, encoding="utf-8")
-        print(f"[init] создан {target} — впиши язык, темп речи и голос канала")
+        target.write_text(channel_env(name), encoding="utf-8")
+        print(f"[init] создан {target}")
+        print("       раскомментируй в нём язык, темп речи и голос канала —")
+        print("       пока строки закомментированы, канал берёт всё глобальное")
 
     for fname in ("script_engine.md", "assets.md"):
         dst = marker / fname

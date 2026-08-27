@@ -72,7 +72,7 @@ def test_init_channel_создаёт_канал(tmp_path, monkeypatch, capsys):
 
     text = (marker / ".env").read_text(encoding="utf-8-sig")
     assert "CHANNEL_NAME=hindi-horror" in text
-    assert "WORDS_PER_MIN" in text          # шаблон целиком, а не одна строка
+    assert "WORDS_PER_MIN" in text          # подсказка есть, пусть и закомментированной
     assert "hindi-horror" in capsys.readouterr().out
 
 
@@ -114,3 +114,73 @@ def test_созданный_канал_находится_роликом(tmp_pat
     assert project.channel == tmp_path / config.CHANNEL_MARKER
     assert project.resource_source("script_engine.md") == "канал"
     assert series_path(project) == tmp_path / "series.jsonl"
+
+
+# --- .env канала не должен перекрывать глобальный конфиг ---------------------
+
+def test_в_env_канала_нет_пустых_присваиваний():
+    """`KEY=` в канале не наследует глобальное значение, а затирает его."""
+    пустые = []
+    for line in cli.channel_env("проба").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        if not value.strip():
+            пустые.append(key)
+
+    assert not пустые, "пустые присваивания затрут глобальные: " + ", ".join(пустые)
+
+
+def test_создание_канала_не_меняет_настройки(tmp_path, global_dir, clean_env,
+                                             monkeypatch):
+    """Канал заводят на пустом месте — до правки его .env всё как было.
+
+    Раньше сюда копировался весь env.example, и создание канала стирало
+    VOICER_API_KEY, сбрасывало FW_DEVICE с cuda на cpu и меняло VIDEO_SIZE.
+    """
+    (global_dir / ".env").write_text("""VOICER_API_KEY=ключ
+VOICER_VOICE_ID=ACRfKVNOAnzVitkYerdl
+VOICER_SPEED=0.9
+FW_DEVICE=cuda
+FW_COMPUTE_TYPE=float16
+VIDEO_SIZE=1280x720
+WHISPER_LANG=hi
+WORDS_PER_MIN=147
+""", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    cli.make_channel("проба")
+    video = tmp_path / "выпуск"
+    video.mkdir()
+    monkeypatch.chdir(video)
+
+    from vidpipe.config import env, load_env
+    load_env(video)
+
+    было = {"VOICER_API_KEY": "ключ", "VOICER_VOICE_ID": "ACRfKVNOAnzVitkYerdl",
+            "VOICER_SPEED": "0.9", "FW_DEVICE": "cuda",
+            "FW_COMPUTE_TYPE": "float16", "VIDEO_SIZE": "1280x720",
+            "WHISPER_LANG": "hi", "WORDS_PER_MIN": "147"}
+    стало = {k: env(k) for k in было}
+
+    assert стало == было
+
+
+def test_после_правки_env_канала_настройка_применяется(tmp_path, global_dir,
+                                                       clean_env, monkeypatch):
+    """Обратная сторона: раскомментировал строку — канал её подставляет."""
+    (global_dir / ".env").write_text("WORDS_PER_MIN=147\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    cli.make_channel("ru")
+    env_file = tmp_path / config.CHANNEL_MARKER / ".env"
+    env_file.write_text(
+        env_file.read_text(encoding="utf-8-sig").replace(
+            "# WORDS_PER_MIN=147", "WORDS_PER_MIN=150"),
+        encoding="utf-8")
+    video = tmp_path / "выпуск"
+    video.mkdir()
+
+    from vidpipe.config import env, load_env
+    load_env(video)
+
+    assert env("WORDS_PER_MIN") == "150"
