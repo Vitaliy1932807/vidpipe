@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vidpipe"
+version = "1.2.0"
+description = "Конвейер производства YouTube-роликов: тема -> сценарий -> озвучка -> субтитры -> раскадровка -> промпты Flow"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31",
+    "python-dotenv>=1.0",
+    "num2words>=0.5.13",
+    "imageio-ffmpeg>=0.5",
+]
+
+[project.optional-dependencies]
+whisper = ["faster-whisper>=1.0.3"]
+
+[project.scripts]
+vidpipe = "vidpipe.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+vidpipe = ["assets/*"]
