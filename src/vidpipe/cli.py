@@ -8,8 +8,8 @@ from pathlib import Path
 
 from .config import (CHANNEL_MARKER, GLOBAL_DIR, PACKAGE_ASSETS, Project,
                      env, ffmpeg_bin, find_channel, load_env)
-from .steps import (assemble, clean, flow, review, script_gen, shotlist,
-                    thumbnail, transcribe, tts)
+from .steps import (assemble, bible, clean, flow, review, script_gen,
+                    shotlist, thumbnail, transcribe, tts)
 from . import __version__
 from .series import cmd_series
 from .validate import cmd_doctor, preflight
@@ -21,6 +21,7 @@ STEPS = {
     "clean":    ("script.md -> voice.txt",            clean.run),
     "tts":      ("voice.txt -> voice.mp3",            tts.run),
     "srt":      ("voice.mp3 -> subtitles.srt",        transcribe.run),
+    "bible":    ("script.md -> bible.md: герои и предметы", bible.run),
     "shotlist": ("srt + script -> shotlist.csv",      shotlist.run),
     "flow":     ("shotlist.csv -> flow_prompts.json", flow.run),
     "thumb":    ("script.md -> thumbnail.txt",        thumbnail.run),

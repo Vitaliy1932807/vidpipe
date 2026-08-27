@@ -38,6 +38,7 @@ FILES = {
     "prompt": "prompt.md",
     "script": "script.md",
     "review": "review.md",
+    "bible": "bible.md",
     "voice_txt": "voice.txt",
     "voice_mp3": "voice.mp3",
     "srt": "subtitles.srt",
