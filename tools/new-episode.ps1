@@ -1,36 +1,44 @@
 <#
 .SYNOPSIS
-    Один выпуск от темы до промптов Flow — одной командой.
+    Выпуск канала по шагам: завести — озвучить и раскадровать — собрать.
 
 .DESCRIPTION
-    Создаёт папку следующего выпуска в нужном канале и прогоняет конвейер до
-    промптов Flow. Клипы генерируются в Flow руками — это единственное место,
-    где конвейер обрывается. Когда клипы сложены в <выпуск>\clips, добери
-    последний шаг: тот же скрипт с -Assemble.
+    Конвейер обрывается в двух местах, и оба обрыва здесь честно разделены.
+
+    1. Текст. Сценарий пишет человек или отдельный сильный ассистент по
+       методике канала: досье фактов, script.md, заголовки. Скрипт только
+       заводит папку выпуска и ТЗ.
+    2. Клипы. Их генерирует Flow вручную по промптам.
+
+    Между ними и после них всё автоматическое:
+       -Produce   script.md -> voice.mp3, субтитры, библия, раскадровка,
+                  промпты для Flow
+       -Assemble  clips/ -> video.mp4
 
 .EXAMPLE
-    .\new-episode.ps1 -Channel ru -Topic "Оборона Киева 1941"
-    .\new-episode.ps1 -Channel hindi -Topic "The Wells of Rajasthan" -Edit
-    .\new-episode.ps1 -Channel ru -Episode 3 -Assemble
+    .\new-episode.ps1 -Channel kak-bylo -Topic "Пожар в MGM Grand"
+    .\new-episode.ps1 -Channel kak-bylo -Episode "Пожар в MGM Grand" -Produce
+    .\new-episode.ps1 -Channel kak-bylo -Episode "Пожар в MGM Grand" -Assemble
+    .\new-episode.ps1 -Channel hindi -Topic "The Wells of Rajasthan"
 #>
 [CmdletBinding()]
 param(
-    # ru | hindi | путь к папке канала
+    # имя канала (vidpipe channels) или путь к его папке
     [Parameter(Mandatory = $true)][string]$Channel,
 
-    # тема выпуска; не нужна при -Assemble
+    # тема нового выпуска; не нужна для -Produce и -Assemble
     [string]$Topic,
 
-    # номер выпуска: по умолчанию следующий свободный, для -Assemble — обязателен
+    # папка выпуска: номер или название. По умолчанию — по обычаю канала
     [string]$Episode,
 
-    # открыть prompt.md и дождаться правок, прежде чем звать Claude
-    [switch]$Edit,
+    # текст готов: озвучка, субтитры, библия, раскадровка, промпты Flow
+    [switch]$Produce,
 
-    # только собрать видео из готовых клипов
+    # клипы готовы: собрать видео
     [switch]$Assemble,
 
-    # перезаписать уже посчитанные файлы выпуска
+    # перезаписать уже посчитанное
     [switch]$Force
 )
 
@@ -60,20 +68,42 @@ if (-not (Test-Path -LiteralPath (Join-Path $root '.vidpipe-channel'))) {
     throw "В $root нет .vidpipe-channel — это не канал. Создать: vidpipe init --channel ИМЯ --dir `"$root`""
 }
 
-# --- номер выпуска ----------------------------------------------------------
-function Get-NextEpisode($channelRoot) {
-    $numbers = Get-ChildItem -LiteralPath $channelRoot -Directory |
+# --- имя папки выпуска ------------------------------------------------------
+# У каналов разный обычай: где-то выпуски пронумерованы, где-то названы по
+# теме. Подстраиваемся под тот, что уже сложился в этом канале.
+function Get-EpisodeName($channelRoot, $topic) {
+    $numbered = Get-ChildItem -LiteralPath $channelRoot -Directory |
         Where-Object { $_.Name -match '^\d+$' } |
         ForEach-Object { [int]$_.Name }
-    if ($numbers) { (($numbers | Measure-Object -Maximum).Maximum + 1) } else { 1 }
+    if ($numbered) {
+        return [string]((($numbered | Measure-Object -Maximum).Maximum + 1))
+    }
+    $named = Get-ChildItem -LiteralPath $channelRoot -Directory |
+        Where-Object { $_.Name -notmatch '^[._]' }
+    if ($named -and $topic) {
+        $чистое = ($topic -replace '[<>:"/\\|?*]', ' ').Trim()
+        $чистое = ($чистое -replace '\s+', ' ')
+        if ($чистое.Length -gt 60) { $чистое = $чистое.Substring(0, 60).Trim() }
+        return $чистое
+    }
+    return '1'
 }
 
 if (-not $Episode) {
-    if ($Assemble) { throw "Для -Assemble укажи номер: -Episode 3" }
-    $Episode = Get-NextEpisode $root
+    if ($Assemble -or $Produce) {
+        throw "Укажи выпуск: -Episode 3 или -Episode `"Название папки`""
+    }
+    $Episode = Get-EpisodeName $root $Topic
 }
 
 $dir = Join-Path $root $Episode
+
+function Test-Model($where) {
+    # Модель нужна шагам bible / shotlist / flow. Проверяем до работы, чтобы
+    # не падать в середине.
+    $почему = & python -c "import sys; from vidpipe.config import load_env; load_env(sys.argv[1]); from vidpipe.llm import readiness; m = readiness(); print(m); sys.exit(1 if m else 0)" $where
+    if ($LASTEXITCODE -ne 0) { throw "Модель недоступна. $почему" }
+}
 
 # --- сборка из готовых клипов -----------------------------------------------
 if ($Assemble) {
@@ -83,24 +113,40 @@ if ($Assemble) {
     }
     $count = (Get-ChildItem -LiteralPath $clips -File).Count
     Write-Host "=== сборка: $dir ($count файлов в clips) ===" -ForegroundColor Cyan
-    $steps = if ($Force) { @('run', '--dir', $dir, '-s', 'assemble', '--force') }
-             else        { @('run', '--dir', $dir, '-s', 'assemble') }
-    & vidpipe @steps
+    $cliArgs = @('run', '--dir', $dir, '-s', 'assemble')
+    if ($Force) { $cliArgs += '--force' }
+    & vidpipe @cliArgs
     if ($LASTEXITCODE -ne 0) { throw "assemble упал с кодом $LASTEXITCODE" }
     Write-Host "`nготово: $(Join-Path $dir 'video.mp4')" -ForegroundColor Green
     return
 }
 
-# --- новый выпуск -----------------------------------------------------------
-if (-not $Topic) { throw "Нужна тема: -Topic `"...`"" }
+# --- текст готов: всё остальное автоматически -------------------------------
+if ($Produce) {
+    $script = Join-Path $dir 'script.md'
+    if (-not (Test-Path -LiteralPath $script)) {
+        throw "Нет $script. Сценарий пишется по методике канала, скрипт его не сочиняет."
+    }
+    Test-Model $dir
+    Write-Host "=== производство: $dir ===" -ForegroundColor Cyan
 
-# Доступность модели проверяем до создания папки: упавший на первом шаге
-# запуск иначе оставляет пустую папку и съедает номер выпуска. Какая именно
-# модель — решает LLM_PROVIDER, скрипту это знать не нужно.
-$почему = & python -c "import sys; from vidpipe.config import load_env; load_env(sys.argv[1]); from vidpipe.llm import readiness; m = readiness(); print(m); sys.exit(1 if m else 0)" $root
-if ($LASTEXITCODE -ne 0) {
-    throw "Модель недоступна. $почему"
+    # script и review сюда не входят намеренно: текст уже написан человеком,
+    # и переписывать его моделью нельзя.
+    $cliArgs = @('run', '--dir', $dir, '-s',
+                 'clean,tts,srt,bible,shotlist,flow')
+    if ($Force) { $cliArgs += '--force' }
+    & vidpipe @cliArgs
+    if ($LASTEXITCODE -ne 0) { throw "конвейер упал с кодом $LASTEXITCODE" }
+
+    Write-Host "`n--- дальше руками ---" -ForegroundColor Yellow
+    Write-Host "  1. промпты для Flow:  $(Join-Path $dir 'flow_prompts.md')"
+    Write-Host "  2. клипы сложи в:     $(Join-Path $dir 'clips')"
+    Write-Host "  3. потом собери:      -Channel $Channel -Episode `"$Episode`" -Assemble"
+    return
 }
+
+# --- завести выпуск ---------------------------------------------------------
+if (-not $Topic) { throw "Нужна тема: -Topic `"...`"" }
 
 if ((Test-Path -LiteralPath $dir) -and -not $Force) {
     $busy = Get-ChildItem -LiteralPath $dir -File -ErrorAction SilentlyContinue
@@ -110,29 +156,17 @@ if ((Test-Path -LiteralPath $dir) -and -not $Force) {
 }
 
 New-Item -ItemType Directory -Path $dir -Force | Out-Null
-Write-Host "=== канал $Channel, выпуск $Episode ===" -ForegroundColor Cyan
+Write-Host "=== канал $Channel, выпуск «$Episode» ===" -ForegroundColor Cyan
 Write-Host "    $dir"
 
-# ТЗ отдельным шагом: так его можно вычитать до того, как Claude потратит токены
 & vidpipe init --dir $dir --topic $Topic
 if ($LASTEXITCODE -ne 0) { throw "init упал с кодом $LASTEXITCODE" }
 
-if ($Edit) {
-    $prompt = Join-Path $dir 'prompt.md'
-    Write-Host "`nправь ТЗ, потом вернись сюда: $prompt" -ForegroundColor Yellow
-    Start-Process notepad $prompt -Wait
-}
-
-# Клипов ещё нет, поэтому assemble в список не входит — он идёт вторым заходом.
-$steps = 'script,review,clean,tts,srt,bible,shotlist,flow,thumb'
-$cliArgs = @('run', '--dir', $dir, '-s', $steps)
-if ($Force) { $cliArgs += '--force' }
-
-& vidpipe @cliArgs
-if ($LASTEXITCODE -ne 0) { throw "конвейер упал с кодом $LASTEXITCODE" }
-
-Write-Host "`n--- дальше руками ---" -ForegroundColor Yellow
-Write-Host "  1. промпты для Flow:  $(Join-Path $dir 'flow_prompts.json')"
-Write-Host "  2. клипы сложи в:     $(Join-Path $dir 'clips')"
-Write-Host "  3. потом собери:      .\new-episode.ps1 -Channel $Channel -Episode $Episode -Assemble"
-Write-Host "`n  что вышло по тексту: vidpipe doctor --dir `"$dir`""
+$канал = Join-Path $root '.vidpipe-channel'
+Write-Host "`n--- дальше текст ---" -ForegroundColor Yellow
+Write-Host "  1. ТЗ:        $(Join-Path $dir 'prompt.md')  — дополни фактами и ограничениями"
+Write-Host "  2. досье:     $(Join-Path $dir 'dossier.md')  по $(Join-Path $канал 'research.md')"
+Write-Host "  3. сценарий:  $(Join-Path $dir 'script.md')   по $(Join-Path $канал 'script_engine.md')"
+Write-Host "  4. упаковка:  $(Join-Path $dir 'thumbnail.txt') по $(Join-Path $канал 'packaging.md')"
+Write-Host "`n  когда script.md готов:" -ForegroundColor Yellow
+Write-Host "  .\new-episode.ps1 -Channel $Channel -Episode `"$Episode`" -Produce"
