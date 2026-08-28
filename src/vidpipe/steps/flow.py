@@ -102,14 +102,62 @@ def справочник(книга: dict[str, dict[str, str]]) -> str:
     return "\n".join(строки)
 
 
-def собрать(сцена: dict, глобальное: dict) -> str:
-    """Готовый текст одного кадра для вставки в Flow."""
-    книга = глобальное.get("characters", {}) | глобальное.get("objects", {})
-    описания = [книга[и] for и in сцена.get("characters", []) if и in книга]
+# Что заказывать в генераторе: восьмисекундный клип или один кадр. Картинке
+# сборка сама добавит наезд Кена Бёрнса, и для документа, портрета или
+# неподвижного предмета это честнее и дешевле, чем видео.
+ДВИЖЕНИЕ_КАМЕРЫ = ("tracking", "pan ", "pan,", "push-in", "pull-out", "orbit",
+                   "dolly", "handheld", "zoom", "aerial")
+ДВИЖЕНИЕ_В_КАДРЕ = ("fire", "burning", "burns", "smoke", "flame", "water",
+                    "dripping", "rain", "snow fall", "fog", "dust", "explosion",
+                    "beam", "wind", "walks", "walking", "carrying", "hands",
+                    "a hand", "crowd", "people ", "working", "sifting")
 
-    куски = [сцена.get("prompt", "").rstrip(". ")]
+
+def вид_кадра(сцена: dict) -> str:
+    """видео или картинка. Решение подсказка, а не приговор: правится руками."""
+    камера = (сцена.get("camera") or "").lower()
+    промпт = (сцена.get("prompt") or "").lower()
+    if any(д in камера for д in ДВИЖЕНИЕ_КАМЕРЫ):
+        return "видео"
+    if any(д in промпт for д in ДВИЖЕНИЕ_В_КАДРЕ):
+        return "видео"
+    return "картинка"
+
+
+ЛЮДИ_В_ПРОМПТЕ = ("man", "woman", "men", "people", "person", "curator",
+                  "staff", "worker", "archaeolog", "visitor", "crowd", "team",
+                  "craftsman", "hand", "figure", "boy", "girl", "child")
+# Сплошные запреты людей, и только они. Уточнённый запрет вида
+# "no person in the doorway" снимать нельзя: он про другого человека, не про
+# рассказчика, и держит главную тайну ролика.
+ЗАПРЕТ_ЛЮДЕЙ = {"no person", "no people", "no persons", "no human",
+                "no humans", "no one visible", "no figures", "no person visible",
+                "no people visible", "no people in frame"}
+
+
+def собрать(сцена: dict, глобальное: dict) -> str:
+    """Готовый текст одного кадра для вставки в Flow.
+
+    Здесь же снимается противоречие, которое модель создаёт постоянно: она
+    приписывает сцене героя и одновременно запрещает людей в кадре. Смотрим
+    на сам промпт. Есть в нём человек — подставляем описание и убираем запрет.
+    Нет — выбрасываем описание, потому что описывать некого.
+    """
+    книга = глобальное.get("characters", {}) | глобальное.get("objects", {})
+    промпт = сцена.get("prompt", "").rstrip(". ")
+    есть_человек = any(с in промпт.lower() for с in ЛЮДИ_В_ПРОМПТЕ)
+    описания = ([книга[и] for и in сцена.get("characters", []) if и in книга]
+                if есть_человек else [])
+
+    свой_запрет = сцена.get("negative", "")
+    if есть_человек and описания:
+        свой_запрет = ", ".join(
+            ч.strip() for ч in свой_запрет.split(",")
+            if ч.strip() and ч.strip().lower() not in ЗАПРЕТ_ЛЮДЕЙ)
+
+    куски = [промпт]
     if описания:
-        куски.append(" ".join(описания))
+        куски.append(" ".join(о.rstrip(". ") for о in описания))
     for поле in ("camera", "lighting", "continuity"):
         if сцена.get(поле):
             куски.append(сцена[поле].rstrip(". "))
@@ -117,7 +165,7 @@ def собрать(сцена: dict, глобальное: dict) -> str:
         if глобальное.get(поле):
             куски.append(глобальное[поле].rstrip(". "))
     запреты = ", ".join(x for x in (глобальное.get("negative", ""),
-                                    сцена.get("negative", "")) if x)
+                                    свой_запрет) if x)
     if запреты:
         куски.append(запреты)
     return ". ".join(к for к in куски if к) + "."
@@ -126,13 +174,17 @@ def собрать(сцена: dict, глобальное: dict) -> str:
 def render_md(project, глобальное: dict, сцены: list[dict]) -> str:
     строки = [f"# Промпты для Flow — {project.name}", ""]
     итого = sum(с["duration"] for с in сцены)
-    строки.append(f"{итого:.0f} секунд, {len(сцены)} сцен. "
+    видео = sum(1 for с in сцены if (с.get("kind") or вид_кадра(с)) == "видео")
+    строки.append(f"{итого:.0f} секунд, {len(сцены)} сцен: {видео} видео и "
+                  f"{len(сцены) - видео} картинок. "
                   f"Стиль, окружение и запреты уже внутри каждого блока — "
                   f"копируй блок целиком.")
     строки.append("")
     for с in сцены:
+        вид = с.get("kind") or вид_кадра(с)
         строки.append(f"## {с['scene']} · {с['start']}–{с['end']} "
-                      f"({с['duration']:.0f} с) — {с.get('purpose', '')}")
+                      f"({с['duration']:.0f} с) · {вид.upper()} — "
+                      f"{с.get('purpose', '')}")
         строки.append("")
         строки.append("```")
         строки.append(собрать(с, глобальное))
@@ -321,6 +373,7 @@ def run(project, force: bool = False) -> None:
             "audio": gen.get("audio", ""),
             "negative": gen.get("negative", ""),
         })
+        out[-1]["kind"] = вид_кадра(out[-1])
 
     if missing:
         print(f"[flow] ! без промпта остались сцены: {missing}")

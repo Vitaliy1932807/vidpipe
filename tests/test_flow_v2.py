@@ -267,3 +267,31 @@ def test_финал_в_знакомом_кадре_не_ругается():
              {"prompt": "empty rails disappear into the snow"}]
 
     assert flow.финал_без_якоря(сцены, ГЛОБ) is False
+
+
+def test_сплошной_запрет_людей_снимается_а_уточнённый_остаётся():
+    """«no person» спорит с героем в кадре. «no person in the doorway» нет:
+    он про другого человека и держит тайну."""
+    глоб = {"style": "", "characters": {"PETR_01": "Male, 52, grey beard"},
+            "objects": {}}
+    сцена = {"prompt": "the man raises a torch", "characters": ["PETR_01"],
+             "negative": "no person, no person in the doorway"}
+
+    кадр = flow.собрать(сцена, глоб)
+
+    assert "grey beard" in кадр
+    assert "no person in the doorway" in кадр
+    assert "no person," not in кадр
+
+
+def test_героя_нет_в_кадре_описание_не_подставляется():
+    """Модель приписала сцене героя, которого в промпте нет."""
+    глоб = {"style": "", "characters": {"PETR_01": "Male, 52, grey beard"},
+            "objects": {}}
+    сцена = {"prompt": "amber panels glowing on the wall",
+             "characters": ["PETR_01"], "negative": "no person in the room"}
+
+    кадр = flow.собрать(сцена, глоб)
+
+    assert "grey beard" not in кадр
+    assert "no person in the room" in кадр
