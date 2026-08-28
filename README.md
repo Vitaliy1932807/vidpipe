@@ -242,8 +242,8 @@ vidpipe channels
 скрипта:
 
 ```powershell
-.	ools
-ew-episode.ps1 -Channel en -Topic "The Fifth Milepost"
+& "G:\Aidpipeidpipe	ools
+ew-episode.ps1" -Channel en -Topic "The Fifth Milepost"
 ```
 
 ## Выпуск по шагам
@@ -254,8 +254,8 @@ ew-episode.ps1 -Channel en -Topic "The Fifth Milepost"
 канала — скрипт его не сочиняет:
 
 ```powershell
-.	ools
-ew-episode.ps1 -Channel kak-bylo -Topic "Пожар в MGM Grand"
+& "G:\Aidpipeidpipe	ools
+ew-episode.ps1" -Channel kak-bylo -Topic "Пожар в MGM Grand"
 ```
 
 **Если писать некому.** Ключ `-Text` отдаёт досье, сценарий, разбор и
@@ -264,15 +264,15 @@ ew-episode.ps1 -Channel kak-bylo -Topic "Пожар в MGM Grand"
 на 14 миллиардов параметров держит её структуру, но не уровень.
 
 ```powershell
-.	ools
-ew-episode.ps1 -Channel kak-bylo -Episode "Пожар в MGM Grand" -Text
+& "G:\Aidpipeidpipe	ools
+ew-episode.ps1" -Channel kak-bylo -Episode "Пожар в MGM Grand" -Text
 ```
 
 **Текст готов.** Озвучка, субтитры, библия героев, раскадровка, промпты Flow:
 
 ```powershell
-.	ools
-ew-episode.ps1 -Channel kak-bylo -Episode "Пожар в MGM Grand" -Produce
+& "G:\Aidpipeidpipe	ools
+ew-episode.ps1" -Channel kak-bylo -Episode "Пожар в MGM Grand" -Produce
 ```
 
 Шаги `script` и `review` сюда не входят намеренно: текст уже написан, и
@@ -281,8 +281,8 @@ ew-episode.ps1 -Channel kak-bylo -Episode "Пожар в MGM Grand" -Produce
 **Клипы готовы.** Сложены в `<выпуск>\clips` — собираем видео:
 
 ```powershell
-.	ools
-ew-episode.ps1 -Channel kak-bylo -Episode "Пожар в MGM Grand" -Assemble
+& "G:\Aidpipeidpipe	ools
+ew-episode.ps1" -Channel kak-bylo -Episode "Пожар в MGM Grand" -Assemble
 ```
 
 Имя папки выпуска подстраивается под обычай канала: где выпуски пронумерованы

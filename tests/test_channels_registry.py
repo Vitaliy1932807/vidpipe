@@ -116,6 +116,23 @@ def test_команда_channels_отдаёт_json(tmp_path, clean_env, capsys):
     assert set(данные) == {"ru", "en"}
 
 
+def test_json_чистый_ascii(tmp_path, clean_env, capsys):
+    """Вывод читают скрипты, а консоль Windows отдаёт его в кодовой странице.
+
+    Живой случай: путь «G:\История МИРА» приезжал в PowerShell как
+    «G:\╚ёЄюЁш ╠╚╨└», канал не находился, хотя был в списке.
+    """
+    завести(tmp_path / "Русский канал", "ru")
+    os.environ["CHANNELS_ROOT"] = str(tmp_path)
+
+    cli.cmd_channels(argparse.Namespace(json=True))
+    вывод = capsys.readouterr().out
+
+    assert вывод.isascii(), вывод
+    import json
+    assert "Русский канал" in json.loads(вывод)["ru"]
+
+
 def test_команда_channels_подсказывает_когда_пусто(clean_env, capsys):
     os.environ["CHANNELS_ROOT"] = ""
 

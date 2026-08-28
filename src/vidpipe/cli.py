@@ -212,8 +212,11 @@ def cmd_channels(args) -> None:
     каналы = find_channels()
     if args.json:
         import json
-        print(json.dumps({и: str(п) for и, п in каналы.items()},
-                         ensure_ascii=False))
+        # ensure_ascii обязателен: вывод читают скрипты, а консоль Windows
+        # отдаёт им его в кодировке кодовой страницы. Кириллица в путях тогда
+        # приезжает искажённой, и канал «не находится», хотя он есть.
+        # Экранированный ASCII переживает любую кодовую страницу.
+        print(json.dumps({и: str(п) for и, п in каналы.items()}))
         return
 
     корни = env("CHANNELS_ROOT")
