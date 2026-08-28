@@ -13,6 +13,7 @@ from .steps import (assemble, bible, clean, flow, research, review,
                     script_gen, shotlist, thumbnail, transcribe, tts)
 from . import __version__
 from .series import cmd_series
+from .checks import postflight
 from .validate import cmd_doctor, preflight
 from .voices import cmd_voices
 
@@ -59,6 +60,7 @@ def cmd_run(args) -> None:
             fn(project, force=args.force, expand_numbers=args.expand_numbers)
         else:
             fn(project, force=args.force)
+        postflight(project, name, strict=not getattr(args, 'loose', False))
 
     print(f"\n=== готово: {project.dir} ===")
 
@@ -332,6 +334,8 @@ def main() -> None:
     r = sub.add_parser("run", parents=[common], help="прогнать конвейер")
     r.add_argument("--topic", "-t", help="тема: создаст prompt.md, если его нет")
     r.add_argument("--steps", "-s", default=ALL, help="через запятую: " + ALL)
+    r.add_argument("--loose", action="store_true",
+                   help="не останавливать конвейер на браке шага, только показать находки")
     r.add_argument("--expand-numbers", action="store_true",
                    help="разворачивать числа в слова (только именительный падеж)")
     r.set_defaults(func=cmd_run)
