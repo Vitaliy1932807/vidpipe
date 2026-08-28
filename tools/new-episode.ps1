@@ -5,9 +5,10 @@
 .DESCRIPTION
     Конвейер обрывается в двух местах, и оба обрыва здесь честно разделены.
 
-    1. Текст. Сценарий пишет человек или отдельный сильный ассистент по
-       методике канала: досье фактов, script.md, заголовки. Скрипт только
-       заводит папку выпуска и ТЗ.
+    1. Текст. Сценарий пишет человек или сильный ассистент по методике
+       канала: досье фактов, script.md, заголовки. Если писать некому,
+       ключ -Text отдаёт эту работу настроенной модели: на локальной
+       получится черновик под правку, а не готовый текст.
     2. Клипы. Их генерирует Flow вручную по промптам.
 
     Между ними и после них всё автоматическое:
@@ -31,6 +32,9 @@ param(
 
     # папка выпуска: номер или название. По умолчанию — по обычаю канала
     [string]$Episode,
+
+    # написать текст локальной моделью: досье, сценарий, разбор, упаковка
+    [switch]$Text,
 
     # текст готов: озвучка, субтитры, библия, раскадровка, промпты Flow
     [switch]$Produce,
@@ -118,6 +122,33 @@ if ($Assemble) {
     & vidpipe @cliArgs
     if ($LASTEXITCODE -ne 0) { throw "assemble упал с кодом $LASTEXITCODE" }
     Write-Host "`nготово: $(Join-Path $dir 'video.mp4')" -ForegroundColor Green
+    return
+}
+
+# --- текст силами модели ----------------------------------------------------
+# Запасной путь на случай, когда писать некому: досье, сценарий, разбор и
+# упаковка делаются той моделью, что настроена в LLM_PROVIDER. На локальной
+# это черновик под правку, а не готовый текст.
+if ($Text) {
+    $prompt = Join-Path $dir 'prompt.md'
+    if (-not (Test-Path -LiteralPath $prompt)) {
+        throw "Нет $prompt. Сначала заведи выпуск: -Topic `"тема`""
+    }
+    Test-Model $dir
+    Write-Host "=== текст: $dir ===" -ForegroundColor Cyan
+    Write-Host "    методики берутся из канала: research.md, script_engine.md," -ForegroundColor DarkGray
+    Write-Host "    review_engine.md, packaging.md" -ForegroundColor DarkGray
+
+    $cliArgs = @('run', '--dir', $dir, '-s', 'research,script,review,thumb')
+    if ($Force) { $cliArgs += '--force' }
+    & vidpipe @cliArgs
+    if ($LASTEXITCODE -ne 0) { throw "текстовые шаги упали с кодом $LASTEXITCODE" }
+
+    Write-Host "`n--- вычитай перед озвучкой ---" -ForegroundColor Yellow
+    Write-Host "  досье:     $(Join-Path $dir 'dossier.md')  даты и цифры сверь по источникам"
+    Write-Host "  сценарий:  $(Join-Path $dir 'script.md')"
+    Write-Host "  упаковка:  $(Join-Path $dir 'thumbnail.txt')"
+    Write-Host "`n  потом: -Channel $Channel -Episode `"$Episode`" -Produce"
     return
 }
 

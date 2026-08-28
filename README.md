@@ -258,6 +258,16 @@ ew-episode.ps1 -Channel en -Topic "The Fifth Milepost"
 ew-episode.ps1 -Channel kak-bylo -Topic "Пожар в MGM Grand"
 ```
 
+**Если писать некому.** Ключ `-Text` отдаёт досье, сценарий, разбор и
+упаковку той модели, что настроена в `LLM_PROVIDER`. На локальной это черновик
+под правку, а не готовый текст: методика канала весит тысячи знаков, и модель
+на 14 миллиардов параметров держит её структуру, но не уровень.
+
+```powershell
+.	ools
+ew-episode.ps1 -Channel kak-bylo -Episode "Пожар в MGM Grand" -Text
+```
+
 **Текст готов.** Озвучка, субтитры, библия героев, раскадровка, промпты Flow:
 
 ```powershell
