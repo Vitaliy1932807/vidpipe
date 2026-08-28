@@ -37,16 +37,24 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # --- каналы -----------------------------------------------------------------
-# Добавляешь канал — добавь строку сюда, остальное подхватится само.
-$CHANNELS = @{
-    'ru'    = 'G:\Русский канал'
-    'hindi' = 'G:\Новая История'
-}
+# Список каналов скрипт у себя не держит: его знает vidpipe. Новый язык
+# заводится командой `vidpipe init --channel ИМЯ --lang КОД --dir ПУТЬ`
+# и появляется здесь сам, без правки этого файла.
+$channels = @{}
+try {
+    $raw = & vidpipe channels --json 2>$null
+    if ($LASTEXITCODE -eq 0 -and $raw) {
+        (ConvertFrom-Json $raw).PSObject.Properties |
+            ForEach-Object { $channels[$_.Name] = $_.Value }
+    }
+} catch { }
 
-$root = if ($CHANNELS.ContainsKey($Channel)) { $CHANNELS[$Channel] } else { $Channel }
+$root = if ($channels.ContainsKey($Channel)) { $channels[$Channel] } else { $Channel }
 
 if (-not (Test-Path -LiteralPath $root)) {
-    throw "Канал не найден: $root. Известные: $($CHANNELS.Keys -join ', ')"
+    $известные = if ($channels.Count) { $channels.Keys -join ', ' }
+                 else { 'ни одного — проверь CHANNELS_ROOT в ~\.vidpipe\.env' }
+    throw "Канал не найден: $root. Известные: $известные"
 }
 if (-not (Test-Path -LiteralPath (Join-Path $root '.vidpipe-channel'))) {
     throw "В $root нет .vidpipe-channel — это не канал. Создать: vidpipe init --channel ИМЯ --dir `"$root`""
@@ -86,11 +94,12 @@ if ($Assemble) {
 # --- новый выпуск -----------------------------------------------------------
 if (-not $Topic) { throw "Нужна тема: -Topic `"...`"" }
 
-# Ключ проверяем до создания папки: упавший на первом шаге запуск иначе
-# оставляет пустую папку и съедает номер выпуска.
-& python -c "import sys; from vidpipe.config import load_env, env; load_env(sys.argv[1]); sys.exit(0 if env('ANTHROPIC_API_KEY') else 1)" $root
+# Доступность модели проверяем до создания папки: упавший на первом шаге
+# запуск иначе оставляет пустую папку и съедает номер выпуска. Какая именно
+# модель — решает LLM_PROVIDER, скрипту это знать не нужно.
+$почему = & python -c "import sys; from vidpipe.config import load_env; load_env(sys.argv[1]); from vidpipe.llm import readiness; m = readiness(); print(m); sys.exit(1 if m else 0)" $root
 if ($LASTEXITCODE -ne 0) {
-    throw "Не задан ANTHROPIC_API_KEY — шаги script/review/shotlist/flow/thumb без него не пойдут. Впиши его в глобальный .env: notepad `$env:USERPROFILE\.vidpipe\.env"
+    throw "Модель недоступна. $почему"
 }
 
 if ((Test-Path -LiteralPath $dir) -and -not $Force) {
@@ -115,7 +124,7 @@ if ($Edit) {
 }
 
 # Клипов ещё нет, поэтому assemble в список не входит — он идёт вторым заходом.
-$steps = 'script,review,clean,tts,srt,shotlist,flow,thumb'
+$steps = 'script,review,clean,tts,srt,bible,shotlist,flow,thumb'
 $cliArgs = @('run', '--dir', $dir, '-s', $steps)
 if ($Force) { $cliArgs += '--force' }
 

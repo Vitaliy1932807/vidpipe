@@ -146,6 +146,25 @@ def extract(data: dict, name: str | None = None) -> str:
     return ""
 
 
+def readiness() -> str:
+    """Пустая строка, если модель доступна, иначе объяснение для человека.
+
+    Нужно автоматизации: упасть до создания папки выпуска дешевле, чем на
+    первом шаге конвейера, уже съев номер.
+    """
+    name = provider()
+    if name == "anthropic":
+        return "" if env("ANTHROPIC_API_KEY") else             "не задан ANTHROPIC_API_KEY (или переключись на LLM_PROVIDER=ollama)"
+    url, _, _ = build("проверка", "проверка", 8, name=name)
+    корень = url.split("/api/")[0].split("/v1/")[0]
+    try:
+        requests.get(корень, timeout=5)
+        return ""
+    except Exception:  # noqa: BLE001
+        return (f"{name}: сервер не отвечает на {корень} — "
+                f"запусти его (для Ollama: ollama serve)")
+
+
 def complete(system: str, user: str, max_tokens: int = 8000,
              model: str | None = None) -> str:
     name = provider()

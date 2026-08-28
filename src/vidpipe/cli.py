@@ -7,7 +7,8 @@ import sys
 from pathlib import Path
 
 from .config import (CHANNEL_MARKER, GLOBAL_DIR, PACKAGE_ASSETS, Project,
-                     env, ffmpeg_bin, find_channel, load_env)
+                     env, ffmpeg_bin, find_channel, find_channels,
+                     load_env)
 from .steps import (assemble, bible, clean, flow, review, script_gen,
                     shotlist, thumbnail, transcribe, tts)
 from . import __version__
@@ -61,7 +62,19 @@ def cmd_run(args) -> None:
     print(f"\n=== готово: {project.dir} ===")
 
 
-def channel_env(name: str) -> str:
+# Что отличает канал на другом языке. Добавляешь язык — добавляешь строку,
+# и больше нигде ничего править не нужно.
+ЯЗЫКИ = {
+    "ru": {"DEFAULT_LANG": "русский", "WORDS_PER_MIN": "150",
+           "WHISPER_LANG": "ru", "FW_MODEL_SIZE": "medium"},
+    "en": {"DEFAULT_LANG": "English", "WORDS_PER_MIN": "140",
+           "WHISPER_LANG": "en", "FW_MODEL_SIZE": "medium"},
+    "hi": {"DEFAULT_LANG": "Hindi", "WORDS_PER_MIN": "147",
+           "WHISPER_LANG": "hi", "FW_MODEL_SIZE": "large-v3"},
+}
+
+
+def channel_env(name: str, lang: str | None = None) -> str:
     """Заготовка .env для канала: только то, что отличает канал от других.
 
     Все настройки закомментированы намеренно. Строка в .env канала перекрывает
@@ -69,6 +82,28 @@ def channel_env(name: str) -> str:
     стирала бы ключи и сбрасывала настройки whisper и сборки. Поэтому создание
     канала не меняет поведение ничего — его меняет только правка этого файла.
     """
+    пресет = ЯЗЫКИ.get((lang or "").lower())
+    if пресет:
+        строки = [
+            f"# --- язык {lang}: подставлено пресетом, правь под канал ---",
+            f"DEFAULT_LANG={пресет['DEFAULT_LANG']}",
+            f"WORDS_PER_MIN={пресет['WORDS_PER_MIN']}",
+            "",
+            "# --- субтитры ---",
+            f"WHISPER_LANG={пресет['WHISPER_LANG']}",
+            f"FW_MODEL_SIZE={пресет['FW_MODEL_SIZE']}",
+        ]
+    else:
+        строки = [
+            "# --- язык и темп речи ---",
+            "# DEFAULT_LANG=Hindi             # Hindi / русский / English",
+            "# WORDS_PER_MIN=147              # 147 хинди, 150 русский, 140 английский",
+            "",
+            "# --- субтитры ---",
+            "# WHISPER_LANG=hi                # ru / hi / en",
+            "# FW_MODEL_SIZE=large-v3         # хинди просит large-v3, ru и en — medium",
+        ]
+    настройки = "\n".join(строки)
     return f"""# ============ Канал: {name} ============
 # Здесь только то, что отличает ЭТОТ канал. Ключи API, модель Claude,
 # настройки whisper и сборки видео берутся из ~/.vidpipe/.env.
@@ -78,13 +113,7 @@ def channel_env(name: str) -> str:
 # закомментированной.
 CHANNEL_NAME={name}
 
-# --- язык и темп речи ---
-# DEFAULT_LANG=Hindi             # как назвать язык в промпте: Hindi / русский / English
-# WORDS_PER_MIN=147              # 147 хинди, 150 русский, 140 английский
-
-# --- субтитры ---
-# WHISPER_LANG=hi                # ru / hi / en
-# FW_MODEL_SIZE=large-v3         # для хинди нужен large-v3, для ru/en хватает medium
+{настройки}
 
 # --- голос канала (найти: vidpipe voices --lang ru) ---
 # VOICER_VOICE_ID=
@@ -97,7 +126,7 @@ CHANNEL_NAME={name}
 
 
 def make_channel(name: str, root: str | Path | None = None,
-                 force: bool = False) -> None:
+                 force: bool = False, lang: str | None = None) -> None:
     """Создаёт канал в папке `root` (по умолчанию текущей): `.vidpipe-channel`
     с .env и промптами, рядом — пустой series.jsonl. Роликами канала
     становятся его подпапки."""
@@ -120,7 +149,7 @@ def make_channel(name: str, root: str | Path | None = None,
     if target.exists() and not force:
         print(f"[init] {target} уже есть, не трогаю (--force чтобы перезаписать)")
     else:
-        target.write_text(channel_env(name), encoding="utf-8")
+        target.write_text(channel_env(name, lang), encoding="utf-8")
         print(f"[init] создан {target}")
         print("       раскомментируй в нём язык, темп речи и голос канала —")
         print("       пока строки закомментированы, канал берёт всё глобальное")
@@ -159,7 +188,8 @@ def cmd_init(args) -> None:
         return
 
     if args.channel:
-        make_channel(args.channel, root=args.dir, force=args.force)
+        make_channel(args.channel, root=args.dir, force=args.force,
+                     lang=getattr(args, 'lang', None))
         return
 
     project = Project.load(args.dir)
@@ -172,6 +202,40 @@ def cmd_init(args) -> None:
         else:
             shutil.copy(project.resource("assets.md"), dst)
             print(f"[init] создан {dst.name} — правь стиль под этот ролик")
+
+
+def cmd_channels(args) -> None:
+    """Все каналы, которые видит автоматизация."""
+    каналы = find_channels()
+    if args.json:
+        import json
+        print(json.dumps({и: str(п) for и, п in каналы.items()},
+                         ensure_ascii=False))
+        return
+
+    корни = env("CHANNELS_ROOT")
+    if not каналы:
+        print("каналов не найдено.")
+        print(f"  CHANNELS_ROOT = {корни or 'не задан'}")
+        print(f"  впиши в {GLOBAL_DIR / '.env'} строку вида")
+        print("  CHANNELS_ROOT=G:\\   (через ; можно несколько корней)")
+        print("  и заведи канал: vidpipe init --channel ru --lang ru --dir ПУТЬ")
+        return
+
+    print(f"каналы (CHANNELS_ROOT={корни}):")
+    print()
+    for имя, путь in sorted(каналы.items()):
+        выпуски = sorted(d.name for d in путь.iterdir()
+                         if d.is_dir() and d.name.isdigit())
+        журнал = путь / "series.jsonl"
+        строк = 0
+        if журнал.exists():
+            строк = len([x for x in журнал.read_text(encoding="utf-8-sig")
+                        .splitlines() if x.strip()])
+        след = str(max((int(x) for x in выпуски), default=0) + 1)
+        print(f"  {имя:12} {путь}")
+        print(f"  {'':12} выпусков {len(выпуски)}, в журнале {строк}, "
+              f"следующий — {след}")
 
 
 def cmd_check(args) -> None:
@@ -276,12 +340,19 @@ def main() -> None:
     i.add_argument("--topic", "-t", help="тема ролика")
     i.add_argument("--global", dest="global_config", action="store_true",
                    help=f"создать {GLOBAL_DIR} с .env и промптами")
+    i.add_argument("--lang", metavar="КОД", choices=sorted(ЯЗЫКИ),
+                   help="язык нового канала: " + ", ".join(sorted(ЯЗЫКИ)) +
+                        " — подставит темп речи, язык промпта и модель whisper")
     i.add_argument("--channel", metavar="ИМЯ",
                    help=f"создать канал: {CHANNEL_MARKER}/ с .env и промптами "
                         f"в текущей папке (или в --dir)")
     i.add_argument("--style", action="store_true",
                    help="положить копию assets.md в папку проекта")
     i.set_defaults(func=cmd_init)
+
+    ch = sub.add_parser("channels", help="какие каналы видит автоматизация")
+    ch.add_argument("--json", action="store_true", help="для скриптов")
+    ch.set_defaults(func=cmd_channels)
 
     c = sub.add_parser("check", parents=[common], help="показать, что откуда берётся")
     c.set_defaults(func=cmd_check)

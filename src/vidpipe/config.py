@@ -64,6 +64,40 @@ def find_channel(start: str | Path | None = None) -> Path | None:
     return None
 
 
+def channel_name_of(marker: Path) -> str:
+    """Имя канала из .env самой папки-маркера, иначе имя её родителя."""
+    own = ""
+    try:
+        from dotenv import dotenv_values
+        own = (dotenv_values(marker / ".env").get("CHANNEL_NAME") or "").strip()
+    except ImportError:
+        pass
+    if own.startswith("#"):
+        own = ""
+    return own or marker.parent.name
+
+
+def find_channels(roots: str | None = None) -> dict[str, Path]:
+    """Все каналы под корнями из CHANNELS_ROOT: {имя: папка канала}.
+
+    Нужно, чтобы автоматизация не хранила список каналов у себя. Новый язык
+    заводится командой init --channel, и скрипты видят его сами — без правки
+    их кода.
+    """
+    строки = roots if roots is not None else os.getenv("CHANNELS_ROOT", "")
+    итог: dict[str, Path] = {}
+    for корень in [c.strip() for c in строки.split(";") if c.strip()]:
+        база = Path(корень).expanduser()
+        if not база.is_dir():
+            continue
+        кандидаты = [база] + sorted(x for x in база.iterdir() if x.is_dir())
+        for d in кандидаты:
+            marker = d / CHANNEL_MARKER
+            if marker.is_dir():
+                итог.setdefault(channel_name_of(marker), d)
+    return итог
+
+
 def load_env(start: str | Path | None = None) -> None:
     """Глобальный ~/.vidpipe/.env, поверх него .env канала, поверх него .env
     папки ролика. Ближний уровень перекрывает дальний.
@@ -115,18 +149,7 @@ class Project:
         уровня — из глобального конфига или из соседнего канала, — и тогда
         канал назвался бы чужим именем. Ровно то, что check должен ловить.
         """
-        if not self.channel:
-            return ""
-        own = ""
-        try:
-            from dotenv import dotenv_values
-            own = (dotenv_values(self.channel / ".env").get("CHANNEL_NAME")
-                   or "").strip()
-        except ImportError:
-            pass
-        if own.startswith("#"):      # `CHANNEL_NAME=  # впиши имя` — не имя
-            own = ""
-        return own or self.channel.parent.name
+        return channel_name_of(self.channel) if self.channel else ""
 
     def __getattr__(self, item: str) -> Path:
         if item in FILES:
