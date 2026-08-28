@@ -136,7 +136,19 @@ def run(project, force: bool = False) -> None:
     print(f"[shotlist] {len(cues)} реплик -> {len(scenes)} сцен по {scene_sec} с, "
           f"хронометраж {_fmt(scenes[-1]['end'])}")
 
-    annotate(scenes, env_int("SHOTLIST_BATCH", 15))
+    from ..llm import без_модели
+    if без_модели():
+        # Сетка сцен это чистый расчёт по таймингам субтитров, она уже готова.
+        # Описание кадра это решение, и его пишет человек.
+        for s in scenes:
+            s["visual"] = ""
+            s["shot_type"] = ""
+            s["motion"] = ""
+            s["mood"] = ""
+        print("[shotlist] модель не настроена: сетка сцен посчитана, "
+              "колонку visual заполни сам")
+    else:
+        annotate(scenes, env_int("SHOTLIST_BATCH", 15))
 
     with project.shotlist.open("w", newline="", encoding="utf-8-sig") as f:
         w = csv.DictWriter(f, fieldnames=["scene", "start", "end", "duration",

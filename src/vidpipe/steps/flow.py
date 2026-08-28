@@ -330,8 +330,22 @@ def run(project, force: bool = False) -> None:
 
     подсказка = справочник(книга)
     prompts: dict[int, dict] = {}
+
+    from ..llm import без_модели
+    заготовка = без_модели()
+    if заготовка:
+        # Собираем каркас: тайминги, реплики и блоки стиля на месте, промпты
+        # пустые. Их пишет человек, а сборка кадра и приёмка работают как есть.
+        print("[flow] модель не настроена: делаю заготовку, промпты за тобой")
+        for r in rows:
+            prompts[int(r["scene"])] = {
+                "scene": int(r["scene"]), "prompt": "", "characters": [],
+                "camera": r.get("motion") or r.get("camera", ""),
+                "lighting": "", "continuity": "", "audio": "",
+                "negative": "", "purpose": ""}
+
     batch = env_int("FLOW_BATCH", 15)
-    for i in range(0, len(rows), batch):
+    for i in range(0, 0 if заготовка else len(rows), batch):
         chunk = rows[i:i + batch]
         print(f"[flow] сцены {chunk[0]['scene']}–{chunk[-1]['scene']}")
         payload = "\n\n".join(
@@ -417,6 +431,7 @@ def run(project, force: bool = False) -> None:
 
     project.flow.write_text(
         json.dumps({"project": project.name, "scene_count": len(out),
+                    "skeleton": заготовка,
                     "global": глобальное, "scenes": out},
                    ensure_ascii=False, indent=2),
         encoding="utf-8",

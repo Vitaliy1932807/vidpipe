@@ -27,7 +27,20 @@ TIMEOUT = {"anthropic": 600, "openai": 600, "ollama": 1800}
 
 
 def provider() -> str:
+    """anthropic, ollama, openai или none.
+
+    none означает, что модели нет и не предполагается: шаги, которым нужно
+    думать, тогда не падают с ошибкой сети, а честно говорят, что этот текст
+    пишет человек, и отдают заготовку под руку.
+    """
     return env("LLM_PROVIDER", "anthropic").strip().lower()
+
+
+НЕТ_МОДЕЛИ = "none"
+
+
+def без_модели() -> bool:
+    return provider() in (НЕТ_МОДЕЛИ, "", "нет")
 
 
 def _temperature() -> float:
@@ -153,6 +166,8 @@ def readiness() -> str:
     первом шаге конвейера, уже съев номер.
     """
     name = provider()
+    if без_модели():
+        return "модель не настроена: LLM_PROVIDER=none"
     if name == "anthropic":
         return "" if env("ANTHROPIC_API_KEY") else             "не задан ANTHROPIC_API_KEY (или переключись на LLM_PROVIDER=ollama)"
     url, _, _ = build("проверка", "проверка", 8, name=name)
@@ -168,6 +183,11 @@ def readiness() -> str:
 def complete(system: str, user: str, max_tokens: int = 8000,
              model: str | None = None) -> str:
     name = provider()
+    if без_модели():
+        raise SystemExit(
+            "[llm] модель не настроена (LLM_PROVIDER=none). Этот шаг думает, "
+            "а не считает, и его результат пишется руками."
+        )
     url, headers, payload = build(system, user, max_tokens, model, name)
 
     last = None

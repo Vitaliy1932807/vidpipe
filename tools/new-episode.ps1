@@ -111,8 +111,8 @@ if (-not $Episode) {
 $dir = Join-Path $root $Episode
 
 function Test-Model($where) {
-    # Модель нужна шагам bible / shotlist / flow. Проверяем до работы, чтобы
-    # не падать в середине.
+    # Нужна только ключу -Prompts. Остальные шаги обходятся без модели:
+    # озвучка, субтитры и сетка сцен это расчёт, а не рассуждение.
     $почему = & python -c "import sys; from vidpipe.config import load_env; load_env(sys.argv[1]); from vidpipe.llm import readiness; m = readiness(); print(m); sys.exit(1 if m else 0)" $where
     if ($LASTEXITCODE -ne 0) { throw "Модель недоступна. $почему" }
 }
@@ -166,7 +166,6 @@ if ($Produce) {
     if (-not (Test-Path -LiteralPath $script)) {
         throw "Нет $script. Сценарий пишется по методике канала, скрипт его не сочиняет."
     }
-    Test-Model $dir
     Write-Host "=== производство: $dir ===" -ForegroundColor Cyan
 
     # Что сюда не входит и почему.

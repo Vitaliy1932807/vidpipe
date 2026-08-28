@@ -272,14 +272,19 @@ def cmd_check(args) -> None:
         print(f"  {key:20} {env(key) or 'НЕ ЗАДАН'}")
 
     print("\nмодель:")
-    from .llm import build, provider
+    from .llm import build, provider, без_модели
     name = provider()
-    try:
+    if без_модели():
+        print("  провайдер            none: модели нет")
+        print("  что это значит       озвучка, субтитры и сетка сцен считаются")
+        print("                       кодом, тексты и промпты пишутся руками")
+    else:
+      try:
         url, _, payload = build("проверка", "проверка", 16)
         print(f"  провайдер            {name}")
         print(f"  модель               {payload.get('model', '?')}")
         print(f"  адрес                {url}")
-    except SystemExit as e:
+      except SystemExit as e:
         print(f"  провайдер            {name} — {e}")
 
     print("\nключи:")
@@ -287,7 +292,9 @@ def cmd_check(args) -> None:
     for key in нужные:
         val = env(key)
         print(f"  {key:20} {'есть' if val else 'НЕТ'}")
-    if name != "anthropic":
+    if без_модели():
+        print("  ANTHROPIC_API_KEY    не нужен: модели нет")
+    elif name != "anthropic":
         print("  ANTHROPIC_API_KEY    не нужен: модель локальная")
 
     if env("VOICER_API_KEY"):

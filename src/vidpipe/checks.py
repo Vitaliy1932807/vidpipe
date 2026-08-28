@@ -141,8 +141,14 @@ def check_flow(project) -> list[Issue]:
     out: list[Issue] = []
     пустые = [с.get("scene") for с in сцены if not (с.get("prompt") or "").strip()]
     if пустые:
-        out.append(Issue("stop", f"без промпта остались сцены: {перечислить(пустые)}",
-                         "vidpipe -s flow -f"))
+        # Заготовка пустой и должна быть: промпты в неё пишет человек.
+        # Останавливать конвейер на этом значит ругаться на замысел.
+        уровень = "warn" if данные.get("skeleton") else "stop"
+        подсказка = ("заполни промпты руками" if данные.get("skeleton")
+                     else "vidpipe -s flow -f")
+        out.append(Issue(уровень,
+                         f"без промпта остались сцены: {перечислить(пустые)}",
+                         подсказка))
 
     спойлеры = [с.get("scene") for с in сцены
                 if шаг.спойлер(с.get("narration", ""), с.get("prompt", ""))]
