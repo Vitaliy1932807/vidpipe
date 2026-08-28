@@ -237,3 +237,49 @@ def test_находки_критика_никогда_не_блокируют(tm
 
     assert находки and all(i.level == "warn" for i in находки)
     assert находки[0].what.startswith("критик:")
+
+
+СТОП = chr(10) + chr(10)
+ТИРЕ = chr(8212)
+МНОГОТОЧИЕ = chr(8230)
+
+# --- то, что критик проверял неверно, а код проверяет точно -------------------
+
+def test_финал_на_вопросе_ловится(tmp_path, global_dir, clean_env):
+    """Локальный критик заявил это про текст без единого вопросительного знака."""
+    from vidpipe.validate import check_script
+
+    p = проект(tmp_path, script__md="Первый абзац." + СТОП + "А что было дальше?")
+
+    assert any("заканчивается вопросом" in i.what for i in check_script(p))
+
+
+def test_финал_на_призыве_ловится(tmp_path, global_dir, clean_env):
+    from vidpipe.validate import check_script
+
+    p = проект(tmp_path, script__md="Первый абзац." + СТОП +
+                                    "Напишите в комментариях, что думаете.")
+
+    assert any("заканчивается призывом" in i.what for i in check_script(p))
+
+
+def test_честный_финал_не_ругается(tmp_path, global_dir, clean_env):
+    """Настоящая концовка Янтарной комнаты: ни вопроса, ни призыва."""
+    from vidpipe.validate import check_script
+
+    p = проект(tmp_path, script__md=(
+        "Напиши в комментариях, что это было." + СТОП +
+        "Её сняли со стены за тридцать шесть часов. "
+        "Чтобы её не стало, могло хватить одной ночи."))
+
+    assert not [i for i in check_script(p) if "заканчивается" in i.what]
+
+
+def test_запрещённые_каналом_знаки(tmp_path, global_dir, clean_env):
+    """Методика этого канала запрещает тире: синтез читает его паузой."""
+    from vidpipe.validate import check_script
+
+    os.environ["SCRIPT_FORBID"] = ТИРЕ + МНОГОТОЧИЕ
+    p = проект(tmp_path, script__md="Текст " + ТИРЕ + " с тире и многоточием" + МНОГОТОЧИЕ)
+
+    assert any("запрещённые каналом знаки" in i.what for i in check_script(p))
