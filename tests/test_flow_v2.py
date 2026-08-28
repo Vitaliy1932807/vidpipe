@@ -295,3 +295,16 @@ def test_героя_нет_в_кадре_описание_не_подставл�
 
     assert "grey beard" not in кадр
     assert "no person in the room" in кадр
+
+
+def test_профессия_в_промпте_считается_человеком():
+    """Живой случай: пилоты, бортинженер и диспетчер не опознавались людьми,
+    и описание героя выбрасывалось из кадра."""
+    глоб = {"style": "", "characters": {"KAP_01": "Male, 50, navy uniform"},
+            "objects": {}}
+    for промпт in ("two uniformed pilots at the controls",
+                   "a flight engineer turning towards the captain",
+                   "a controller at a console in a small tower"):
+        кадр = flow.собрать({"prompt": промпт, "characters": ["KAP_01"],
+                             "negative": ""}, глоб)
+        assert "navy uniform" in кадр, промпт

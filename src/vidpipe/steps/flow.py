@@ -124,9 +124,16 @@ def вид_кадра(сцена: dict) -> str:
     return "картинка"
 
 
-ЛЮДИ_В_ПРОМПТЕ = ("man", "woman", "men", "people", "person", "curator",
-                  "staff", "worker", "archaeolog", "visitor", "crowd", "team",
-                  "craftsman", "hand", "figure", "boy", "girl", "child")
+# Список профессий здесь не украшение: без него сборка считает, что в кадре
+# нет человека, и выбрасывает описание героя. На ролике про авиацию так вышло
+# с пилотами, бортинженером и диспетчером.
+ЛЮДИ_В_ПРОМПТЕ = ("man", "woman", "men", "people", "person", "someone",
+                  "curator", "staff", "worker", "archaeolog", "visitor",
+                  "crowd", "team", "craftsman", "hand", "figure",
+                  "boy", "girl", "child",
+                  "pilot", "captain", "engineer", "controller", "crew",
+                  "officer", "guard", "driver", "operator", "technician",
+                  "uniformed", "passenger", "soldier", "nurse", "doctor")
 # Сплошные запреты людей, и только они. Уточнённый запрет вида
 # "no person in the doorway" снимать нельзя: он про другого человека, не про
 # рассказчика, и держит главную тайну ролика.
