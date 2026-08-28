@@ -91,6 +91,25 @@ def test_число_сверяется_и_по_тз_а_не_только_по_с
     assert [i for i in checks.check_bible(p) if "нет в сценарии" in i.what] == []
 
 
+def test_идентификаторы_из_примера_блокируют(tmp_path, global_dir, clean_env):
+    """Живой случай: в библию для ролика про Тенерифе попал PETR_01 из примера."""
+    p = проект(tmp_path, bible__md="""[CHARACTERS]
+PLACEHOLDER_01
+Male, 52 years old, grey beard.
+""")
+
+    находки = checks.check_bible(p)
+
+    assert any(i.level == "stop" and "списаны из примера" in i.what
+               for i in находки), [i.what for i in находки]
+
+
+def test_свои_идентификаторы_проходят(tmp_path, global_dir, clean_env):
+    p = проект(tmp_path, bible__md=БИБЛИЯ_ЧИСТАЯ)
+
+    assert not [i for i in checks.check_bible(p) if "списаны" in i.what]
+
+
 def test_пустая_библия_блокирует(tmp_path, global_dir, clean_env):
     p = проект(tmp_path, bible__md="# библия\n\nтут пусто\n")
 
