@@ -12,8 +12,8 @@
     2. Клипы. Их генерирует Flow вручную по промптам.
 
     Между ними и после них всё автоматическое:
-       -Produce   script.md -> voice.mp3, субтитры, библия, раскадровка,
-                  промпты для Flow
+       -Produce   script.md -> voice.mp3, субтитры, раскадровка
+       -Prompts   раскадровка -> библия и промпты Flow силами модели
        -Assemble  clips/ -> video.mp4
 
 .EXAMPLE
@@ -36,8 +36,11 @@ param(
     # написать текст локальной моделью: досье, сценарий, разбор, упаковка
     [switch]$Text,
 
-    # текст готов: озвучка, субтитры, библия, раскадровка, промпты Flow
+    # текст готов: озвучка, субтитры, раскадровка
     [switch]$Produce,
+
+    # отдать библию и промпты Flow модели, а не писать их руками
+    [switch]$Prompts,
 
     # клипы готовы: собрать видео
     [switch]$Assemble,
@@ -166,18 +169,38 @@ if ($Produce) {
     Test-Model $dir
     Write-Host "=== производство: $dir ===" -ForegroundColor Cyan
 
-    # script и review сюда не входят намеренно: текст уже написан человеком,
-    # и переписывать его моделью нельзя.
-    $cliArgs = @('run', '--dir', $dir, '-s',
-                 'clean,tts,srt,bible,shotlist,flow')
+    # Что сюда не входит и почему.
+    # script и review: текст уже написан человеком, переписывать его нельзя.
+    # bible и flow: это решения, а не механика. Локальная модель на них
+    # ошибается дорого, а проверять её выходит дольше, чем написать самому.
+    # Нужны они всё же от модели, есть отдельный ключ -Prompts.
+    $cliArgs = @('run', '--dir', $dir, '-s', 'clean,tts,srt,shotlist')
     if ($Force) { $cliArgs += '--force' }
     & vidpipe @cliArgs
     if ($LASTEXITCODE -ne 0) { throw "конвейер упал с кодом $LASTEXITCODE" }
 
-    Write-Host "`n--- дальше руками ---" -ForegroundColor Yellow
-    Write-Host "  1. промпты для Flow:  $(Join-Path $dir 'flow_prompts.md')"
-    Write-Host "  2. клипы сложи в:     $(Join-Path $dir 'clips')"
-    Write-Host "  3. потом собери:      -Channel $Channel -Episode `"$Episode`" -Assemble"
+    Write-Host "`n--- дальше ---" -ForegroundColor Yellow
+    Write-Host "  раскадровка:  $(Join-Path $dir 'shotlist.csv')"
+    Write-Host "  по ней пишутся библия героев и промпты для Flow."
+    Write-Host "  отдать это модели: тот же вызов с ключом -Prompts"
+    Write-Host "  потом клипы в $(Join-Path $dir 'clips') и ключ -Assemble"
+    return
+}
+
+# --- библия и промпты силами модели -----------------------------------------
+if ($Prompts) {
+    if (-not (Test-Path -LiteralPath (Join-Path $dir 'shotlist.csv'))) {
+        throw "Нет раскадровки. Сначала: -Channel $Channel -Episode `"$Episode`" -Produce"
+    }
+    Test-Model $dir
+    Write-Host "=== библия и промпты: $dir ===" -ForegroundColor Cyan
+    Write-Host "    модель ошибается на этом шаге дорого, вычитывай результат" -ForegroundColor DarkGray
+
+    $cliArgs = @('run', '--dir', $dir, '-s', 'bible,flow')
+    if ($Force) { $cliArgs += '--force' }
+    & vidpipe @cliArgs
+    if ($LASTEXITCODE -ne 0) { throw "шаг упал с кодом $LASTEXITCODE" }
+    Write-Host "`n  проверь: $(Join-Path $dir 'bible.md') и $(Join-Path $dir 'flow_prompts.md')"
     return
 }
 
