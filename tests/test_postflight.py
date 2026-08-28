@@ -6,7 +6,7 @@ import os
 
 import pytest
 
-from vidpipe import checks, critic
+from vidpipe import checks
 from vidpipe.config import Project
 
 from conftest import make_channel_dir
@@ -198,52 +198,11 @@ def test_у_каждого_шага_есть_приёмка():
     assert not без_проверки, без_проверки
 
 
-# --- критик -------------------------------------------------------------------
-
-def test_критик_выключен_по_умолчанию(tmp_path, global_dir, clean_env):
-    p = проект(tmp_path, script__md="текст сценария")
-
-    assert critic.review_output(p, "script") == []
-
-
-def test_критик_включается_по_шагам(clean_env):
-    os.environ["CRITIC_STEPS"] = "script, flow"
-
-    assert critic.включённые() == {"script", "flow"}
-
-
-def test_находки_критика_никогда_не_блокируют(tmp_path, global_dir, clean_env,
-                                              monkeypatch):
-    """Локальная модель ошибается: остановка конвейера ей не доверена."""
-    make_channel_dir(tmp_path / "канал", CHANNEL_NAME="kb")
-    (tmp_path / "канал" / ".vidpipe-channel" / "script_engine.md").write_text(
-        "методика канала", encoding="utf-8")
-    d = tmp_path / "канал" / "выпуск"
-    d.mkdir()
-    p = Project.load(d)
-    p.script.write_text("текст сценария", encoding="utf-8")
-
-    os.environ["CRITIC_STEPS"] = "script"
-    monkeypatch.setattr(critic, "complete_json",
-                        lambda *a, **k: [{"what": "вход не держит обещание",
-                                          "fix": "переписать первый абзац"}],
-                        raising=False)
-    import vidpipe.llm as llm
-    monkeypatch.setattr(llm, "complete_json",
-                        lambda *a, **k: [{"what": "вход не держит обещание",
-                                          "fix": "переписать первый абзац"}])
-
-    находки = critic.review_output(p, "script")
-
-    assert находки and all(i.level == "warn" for i in находки)
-    assert находки[0].what.startswith("критик:")
-
-
 СТОП = chr(10) + chr(10)
 ТИРЕ = chr(8212)
 МНОГОТОЧИЕ = chr(8230)
 
-# --- то, что критик проверял неверно, а код проверяет точно -------------------
+# --- то, что пробовали спрашивать у модели, а проверяет код -------------------
 
 def test_финал_на_вопросе_ловится(tmp_path, global_dir, clean_env):
     """Локальный критик заявил это про текст без единого вопросительного знака."""
