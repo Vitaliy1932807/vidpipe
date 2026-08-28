@@ -1,7 +1,7 @@
 """Шаг 7: script.md -> thumbnail.txt (варианты заголовка + промпт обложки)."""
 from __future__ import annotations
 
-from ..config import env_int, read_text
+from ..config import env_int, read_prompt, read_text
 from ..llm import complete
 
 SYSTEM = """Ты придумываешь обложку и заголовок для документального YouTube-ролика.
@@ -31,11 +31,17 @@ def run(project, force: bool = False) -> None:
         print(f"[thumb] пропуск, {project.thumbnail.name} уже есть")
         return
 
+    # Упаковка — отдельное звено конвейера, и у канала может быть свой промпт
+    # под заголовки и обложки. Нет своего — работает встроенный.
+    своя, источник = read_prompt(project, "packaging.md")
+    система = своя or SYSTEM
+    print(f"[thumb] упаковка: {источник or 'встроенная'}")
+
     script = read_text(project.script)
     head = script[:6000]
     user = f"Текст ролика (начало):\n\n{head}"
     project.thumbnail.write_text(
-        complete(SYSTEM, user, max_tokens=env_int("THUMB_MAX_TOKENS", 2000)).strip() + "\n",
+        complete(система, user, max_tokens=env_int("THUMB_MAX_TOKENS", 2000)).strip() + "\n",
         encoding="utf-8",
     )
     print(f"[thumb] {project.thumbnail.name} готов")

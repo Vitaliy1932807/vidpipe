@@ -9,14 +9,15 @@ from pathlib import Path
 from .config import (CHANNEL_MARKER, GLOBAL_DIR, PACKAGE_ASSETS, Project,
                      env, ffmpeg_bin, find_channel, find_channels,
                      load_env)
-from .steps import (assemble, bible, clean, flow, review, script_gen,
-                    shotlist, thumbnail, transcribe, tts)
+from .steps import (assemble, bible, clean, flow, research, review,
+                    script_gen, shotlist, thumbnail, transcribe, tts)
 from . import __version__
 from .series import cmd_series
 from .validate import cmd_doctor, preflight
 from .voices import cmd_voices
 
 STEPS = {
+    "research": ("тема -> dossier.md: досье фактов",   research.run),
     "script":   ("prompt.md -> script.md",            script_gen.run),
     "review":   ("проверка сценария по методике",     review.run),
     "clean":    ("script.md -> voice.txt",            clean.run),

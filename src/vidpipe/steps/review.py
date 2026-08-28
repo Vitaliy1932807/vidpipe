@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 
-from ..config import env, env_int, read_text
+from ..config import read_prompt, env, env_int, read_text
 from ..llm import complete, complete_json
 
 CRITIC = """Ты — придирчивый редактор YouTube-канала. Тебе дают методику канала
@@ -114,7 +114,11 @@ def run(project, force: bool = False) -> None:
         print(f"[review] пропуск, {project.review.name} уже есть")
         return
 
-    methodology = read_text(project.resource("script_engine.md"))
+    # У редактора может быть своя методика — например разбор удержания,
+    # отдельный от методики написания. Нет своей — берём общую.
+    methodology, источник = read_prompt(project, "review_engine.md",
+                                        "script_engine.md")
+    print(f"[review] методика: {источник}")
     text = read_text(project.script)
     max_passes = env_int("REVIEW_PASSES", 2)
 

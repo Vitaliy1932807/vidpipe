@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..config import env, env_int, read_text
+from ..config import env, env_int, read_prompt, read_text
 from ..llm import complete
 from .. import series
 
@@ -65,10 +65,17 @@ def run(project, force: bool = False, topic: str | None = None) -> None:
         print(f"[script] пропуск, {project.script.name} уже есть")
         return
 
-    engine = project.resource("script_engine.md")
-    print(f"[script] методика: {engine} ({project.resource_source('script_engine.md')})")
-    system = read_text(engine)
+    system, источник = read_prompt(project, "script_engine.md")
+    print(f"[script] методика: {источник}")
     brief = read_text(project.prompt)
+
+    # Досье первого звена, если оно собрано: сценарий пишется из проверенных
+    # фактов, а не из того, что модель помнит про тему.
+    досье = project.dir / "dossier.md"
+    факты = ""
+    if досье.exists():
+        факты = f"ДОСЬЕ ФАКТОВ:\n\n{read_text(досье)}\n\n"
+        print(f"[script] досье: {досье.name}, {len(факты.split())} слов")
     duration = env_int("DEFAULT_DURATION_MIN")
     wpm = env_int("WORDS_PER_MIN")
 
@@ -78,6 +85,7 @@ def run(project, force: bool = False, topic: str | None = None) -> None:
 
     user = (
         f"{brief}\n\n"
+        f"{факты}"
         f"{avoid}"
         f"Напиши готовый текст закадрового голоса по этому ТЗ. "
         f"Целевой объём — примерно {duration * wpm} слов "
