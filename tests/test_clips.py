@@ -226,3 +226,35 @@ def test_кадры_от_чужого_выпуска_останавливают_
     assert "файлов 2: 2 видео, 0 картинок" in вывод      # считаем файлы
     assert "не подошёл к сценам этого выпуска" in вывод
     assert "папка не та" in вывод
+
+
+def test_при_ничьей_решает_номер_в_имени(tmp_path, global_dir, clean_env):
+    """Генератор обрезает имя, и остатка хватает сразу на две сцены.
+
+    Живой случай: «cockpit of a wide-body airliner seen» подошло и
+    восемнадцатой сцене, и двадцать четвёртой одинаково. Побеждала меньшая
+    по номеру, и кадр садился не на своё место, а соседняя сцена пустела.
+    """
+    сцены = [
+        {"scene": 18, "prompt": "a wide-body airliner with an upper deck "
+                                "rolling along a runway seen from the side",
+         "kind": "видео"},
+        {"scene": 24, "prompt": "cockpit of a wide-body airliner seen from "
+                                "behind the crew seats", "kind": "видео"},
+    ]
+    p = проект(tmp_path, ["024-cockpit-of-a-wide-body-airliner-seen-05171929.mp4"],
+               сцены=сцены)
+
+    разбор = clips.сопоставить(clips.файлы_папки(p.dir / "clips"), сцены)
+
+    assert [п["сцена"] for п in разбор["пары"]] == [24]
+    assert разбор["нет_клипа"] == [18]
+
+
+def test_номер_не_перебивает_текст(tmp_path, global_dir, clean_env):
+    """Номер решает только при равенстве. Содержание всегда весомее."""
+    p = проект(tmp_path, ["001-a-cold-hearth-filled-with-grey-ash.mp4"])
+
+    разбор = clips.сопоставить(clips.файлы_папки(p.dir / "clips"), СЦЕНЫ)
+
+    assert разбор["пары"][0]["сцена"] == 3      # не 1, хотя в имени единица
