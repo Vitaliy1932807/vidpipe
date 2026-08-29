@@ -369,3 +369,52 @@ def test_ложный_человек_не_снимает_запрет_людей
 
     assert "no person" in кадр          # запрет на месте
     assert "round glasses" not in кадр  # описывать в этом кадре некого
+
+
+РАСКЛАД = [
+    {"scene": 1, "prompt": "an empty snowy road", "kind": "видео",
+     "duration": 8.0, "start": "00:00:00", "end": "00:00:08", "characters": [],
+     "camera": "", "lighting": "", "negative": ""},
+    {"scene": 2, "prompt": "an amber panel on a table", "kind": "картинка",
+     "duration": 8.0, "start": "00:00:08", "end": "00:00:16", "characters": [],
+     "camera": "", "lighting": "", "negative": ""},
+    {"scene": 3, "prompt": "a cold hearth full of ash", "kind": "картинка",
+     "duration": 8.0, "start": "00:00:16", "end": "00:00:24", "characters": [],
+     "camera": "", "lighting": "", "negative": ""},
+]
+
+
+def test_промпты_раскладываются_по_виду():
+    """Генераторы видео и картинок разные, работать с ними удобнее раздельно."""
+    видео = flow.render_txt({}, РАСКЛАД, "видео")
+    картинки = flow.render_txt({}, РАСКЛАД, "картинка")
+
+    assert "an empty snowy road" in видео
+    assert "an amber panel" not in видео
+    блоки = [б for б in картинки.split("\n\n") if б.strip()]
+    assert len(блоки) == 2                      # две сцены, каждая отдельным блоком
+    assert [б.split("\n")[0] for б in блоки] == ["2", "3"]
+
+
+def test_в_раскладке_только_номер_и_промпт():
+    """Ни заголовков, ни разметки, ни отступов: блок вставляется как есть."""
+    текст = flow.render_txt({}, РАСКЛАД, "видео")
+    строки = [с for с in текст.split("\n") if с]
+
+    assert строки[0] == "1"
+    assert строки[1].startswith("an empty snowy road")
+    assert not any(с.startswith((" ", "\t", "#", "`", ">")) for с in строки)
+
+
+def test_раскладка_ложится_рядом_с_выпуском(tmp_path, global_dir, clean_env):
+    from vidpipe.config import Project
+    make_channel_dir(tmp_path / "канал", CHANNEL_NAME="kb")
+    d = tmp_path / "канал" / "выпуск"
+    d.mkdir()
+    p = Project.load(d)
+
+    сделано = flow.разложить_по_виду(p, {}, РАСКЛАД)
+
+    assert (p.dir / "промпты-видео.txt").exists()
+    assert (p.dir / "промпты-картинки.txt").exists()
+    assert сделано["видео"][1] == 1 and сделано["картинка"][1] == 2
