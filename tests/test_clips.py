@@ -206,3 +206,23 @@ def test_сборка_не_идёт_мимо_вложенной_папки(tmp_p
 
     assert any("вложенных папках" in и.what for и in стоп), [и.what for и in стоп]
     assert any("vidpipe clips --apply" in и.fix for и in стоп)
+
+
+def test_кадры_от_чужого_выпуска_останавливают_разбор(tmp_path, global_dir,
+                                                      clean_env, capsys):
+    """Папки соседние, имена похожие — партию легко скачать не туда.
+
+    Раньше это выглядело как обычный разбор с нулевым результатом: команда
+    сообщала «не опознаны» и шла дальше, а счётчик показывал ноль видео при
+    полусотне файлов, потому что считал совпавшие пары, а не файлы.
+    """
+    p = проект(tmp_path, ["001-aerial-view-of-a-small-mountain-airport.mp4",
+                          "002-two-wide-body-airliner-tails-standing.mp4"])
+
+    with pytest.raises(SystemExit, match="разбирать нечего"):
+        прогнать(p)
+
+    вывод = capsys.readouterr().out
+    assert "файлов 2: 2 видео, 0 картинок" in вывод      # считаем файлы
+    assert "не подошёл к сценам этого выпуска" in вывод
+    assert "папка не та" in вывод
