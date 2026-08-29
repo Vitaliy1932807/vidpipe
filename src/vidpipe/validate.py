@@ -285,6 +285,20 @@ ARTIFACTS = [
 ]
 
 # что нужно шагу до запуска
+def check_сценарий_прочитан(project) -> list[Issue]:
+    """Стоп перед шагами, где непрочитанный текст дорожает."""
+    from .approve import ПОДСКАЗКА, не_принят
+    причина = не_принят(project)
+    return [Issue("stop", причина, ПОДСКАЗКА)] if причина else []
+
+
+def напомнить_прочитать(project) -> list[Issue]:
+    """Сразу после сценария — не стоп, а напоминание: читать человеку."""
+    from .approve import ПОДСКАЗКА, не_принят
+    причина = не_принят(project)
+    return [Issue("warn", причина, ПОДСКАЗКА)] if причина else []
+
+
 PREFLIGHT = {
     "clean": [check_script],
     "tts": [check_voice_txt],
@@ -293,6 +307,11 @@ PREFLIGHT = {
     "flow": [check_shotlist],
     "assemble": [check_shotlist, check_clips],
 }
+
+# Прочитанный сценарий — условие входа для всего, что идёт после него.
+for _шаг in ("clean", "tts", "srt", "bible", "shotlist", "flow", "thumb",
+             "assemble"):
+    PREFLIGHT.setdefault(_шаг, []).insert(0, check_сценарий_прочитан)
 
 
 def preflight(project, step: str) -> None:

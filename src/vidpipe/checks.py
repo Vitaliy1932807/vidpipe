@@ -23,7 +23,8 @@ import json
 import re
 
 from .config import read_text
-from .validate import (Issue, check_clips, check_script, check_shotlist,
+from .validate import (Issue, check_clips, check_script,
+                       напомнить_прочитать, check_shotlist,
                        check_srt, check_video, check_voice_mp3,
                        check_voice_txt)
 
@@ -198,8 +199,8 @@ def check_thumbnail(project) -> list[Issue]:
 # Что проверять ПОСЛЕ шага, до передачи дальше.
 POSTFLIGHT = {
     "research": [check_dossier],
-    "script":   [check_script],
-    "review":   [check_script],
+    "script":   [check_script, напомнить_прочитать],
+    "review":   [check_script, напомнить_прочитать],
     "clean":    [check_voice_txt],
     "tts":      [check_voice_mp3],
     "srt":      [check_srt],

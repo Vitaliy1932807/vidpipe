@@ -156,6 +156,8 @@ if ($Text) {
     Write-Host "  досье:     $(Join-Path $dir 'dossier.md')  даты и цифры сверь по источникам"
     Write-Host "  сценарий:  $(Join-Path $dir 'script.md')"
     Write-Host "  упаковка:  $(Join-Path $dir 'thumbnail.txt')"
+    Write-Host "`n  прочитал сценарий — подтверди, иначе дальше не пустит:" -ForegroundColor Yellow
+    Write-Host "  vidpipe ok --dir `"$dir`""
     Write-Host "`n  потом: -Channel $Channel -Episode `"$Episode`" -Produce"
     return
 }
@@ -226,5 +228,6 @@ Write-Host "  1. ТЗ:        $(Join-Path $dir 'prompt.md')  — дополни 
 Write-Host "  2. досье:     $(Join-Path $dir 'dossier.md')  по $(Join-Path $канал 'research.md')"
 Write-Host "  3. сценарий:  $(Join-Path $dir 'script.md')   по $(Join-Path $канал 'script_engine.md')"
 Write-Host "  4. упаковка:  $(Join-Path $dir 'thumbnail.txt') по $(Join-Path $канал 'packaging.md')"
-Write-Host "`n  когда script.md готов:" -ForegroundColor Yellow
+Write-Host "`n  когда script.md готов — прочитай его и подтверди:" -ForegroundColor Yellow
+Write-Host "  vidpipe ok --dir `"$dir`""
 Write-Host "  .\new-episode.ps1 -Channel $Channel -Episode `"$Episode`" -Produce"

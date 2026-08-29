@@ -14,6 +14,7 @@ from .steps import (assemble, bible, clean, flow, research, review,
 from . import __version__
 from .series import cmd_series
 from .checks import postflight
+from .approve import cmd_ok
 from .clips import cmd_clips
 from .validate import cmd_doctor, preflight
 from .voices import cmd_voices
@@ -365,6 +366,10 @@ def main() -> None:
     i.add_argument("--style", action="store_true",
                    help="положить копию assets.md в папку проекта")
     i.set_defaults(func=cmd_init)
+
+    ok = sub.add_parser("ok", parents=[common],
+                        help="сценарий прочитан, можно дальше")
+    ok.set_defaults(func=cmd_ok)
 
     cl = sub.add_parser("clips", parents=[common],
                         help="разложить файлы из clips по сценам")
