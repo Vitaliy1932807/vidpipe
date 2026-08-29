@@ -1,11 +1,17 @@
 """Общий клиент модели для шагов, где надо думать.
 
-Три провайдера, переключаются переменной LLM_PROVIDER:
+Два провайдера, переключаются переменной LLM_PROVIDER:
 
     anthropic  — Claude по ключу (по умолчанию)
-    ollama     — локальная модель, без ключей и без интернета
     openai     — любой OpenAI-совместимый эндпоинт: LM Studio, vLLM,
                  OpenRouter, DeepSeek и прочие
+
+Локальная модель через Ollama здесь была и убрана. Замер на живом выпуске:
+14B писала промпты, которые приходилось переписывать целиком, а приёмку
+сценария прошла с пятью находками, верными ноль. Если локальная модель всё же
+нужна, её поднимают LM Studio или vLLM и подключают как openai по адресу
+OPENAI_BASE_URL: ключ таким серверам не нужен, и отдельный провайдер под это
+не требуется.
 
 Шаги про провайдера ничего не знают: они зовут complete() и complete_json().
 """
@@ -21,13 +27,13 @@ from .config import env, env_int
 
 RETRYABLE = {408, 409, 429, 500, 502, 503, 504, 529}
 
-# Локальная модель на 12 ГБ видеопамяти отвечает минутами, а не секундами —
+# Локальный сервер на своей видеокарте отвечает минутами, а не секундами,
 # особенно на первом запросе, пока веса грузятся с диска в видеопамять.
-TIMEOUT = {"anthropic": 600, "openai": 600, "ollama": 1800}
+TIMEOUT = {"anthropic": 600, "openai": 600}
 
 
 def provider() -> str:
-    """anthropic, ollama, openai или none.
+    """anthropic, openai или none.
 
     none означает, что модели нет и не предполагается: шаги, которым нужно
     думать, тогда не падают с ошибкой сети, а честно говорят, что этот текст
@@ -48,35 +54,6 @@ def _temperature() -> float:
         return float(env("LLM_TEMPERATURE", "0.8"))
     except ValueError:
         return 0.8
-
-
-ОКНА = (4096, 8192, 12288, 16384, 24576, 32768, 49152, 65536)
-
-
-def context_window(system: str, user: str, max_tokens: int) -> int:
-    """Подбираем окно контекста под конкретный запрос.
-
-    Одним числом это не задать. Слишком маленькое окно молча срежет задание;
-    слишком большое навсегда отнимает видеопамять, и модель уезжает считать
-    на процессор — на 12 ГБ разница между окном 8192 и 16384 это 100% GPU
-    против 85%, то есть вдвое дольше на каждом шаге.
-
-    OLLAMA_CTX здесь — потолок, а не значение. OLLAMA_RESERVE — сколько
-    токенов заложить под ответ: шаги просят max_tokens с большим запасом,
-    и закладывать его целиком значит резервировать пустоту.
-    """
-    потолок = env_int("OLLAMA_CTX", 16384)
-    резерв = env_int("OLLAMA_RESERVE", 4096)
-    # кириллица у Qwen — примерно 2.5 символа на токен, берём с запасом
-    вход = int((len(system) + len(user)) / 2.5)
-    if вход + 512 > потолок:
-        print(f"[llm] промпт ~{вход} токенов не помещается в окно {потолок}: "
-              f"часть задания модель не увидит. Подними OLLAMA_CTX.")
-    нужно = вход + min(max_tokens, резерв) + 512
-    for окно in ОКНА:
-        if окно >= нужно:
-            return min(окно, потолок)
-    return потолок
 
 
 def build(system: str, user: str, max_tokens: int,
@@ -105,26 +82,6 @@ def build(system: str, user: str, max_tokens: int,
         }
         return url, headers, payload
 
-    if name == "ollama":
-        url = env("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/") + "/api/chat"
-        payload = {
-            "model": model or env("OLLAMA_MODEL", "qwen2.5:14b-instruct"),
-            "messages": messages,
-            "stream": False,
-            # Сколько модель висит в видеопамяти после ответа. На карте, где
-            # тем же местом пользуется whisper на large-v3, дефолтные пять
-            # минут означают драку за память на шаге srt.
-            "keep_alive": env("OLLAMA_KEEP_ALIVE", "30s"),
-            "options": {
-                # По умолчанию Ollama даёт 2048 токенов: методика канала
-                # туда не влезет и обрежется молча. Считаем окно под запрос.
-                "num_ctx": context_window(system, user, max_tokens),
-                "num_predict": max_tokens,
-                "temperature": _temperature(),
-            },
-        }
-        return url, {"content-type": "application/json"}, payload
-
     if name == "openai":
         url = env("OPENAI_BASE_URL", "http://localhost:1234/v1").rstrip("/") + "/chat/completions"
         headers = {"content-type": "application/json"}
@@ -141,7 +98,7 @@ def build(system: str, user: str, max_tokens: int,
 
     raise SystemExit(
         f"[llm] неизвестный LLM_PROVIDER={name!r}. "
-        f"Доступны: anthropic, ollama, openai"
+        f"Доступны: anthropic, openai, none"
     )
 
 
@@ -151,8 +108,6 @@ def extract(data: dict, name: str | None = None) -> str:
     if name == "anthropic":
         return "".join(b.get("text", "") for b in data.get("content", [])
                        if b.get("type") == "text").strip()
-    if name == "ollama":
-        return (data.get("message") or {}).get("content", "").strip()
     if name == "openai":
         choices = data.get("choices") or [{}]
         return (choices[0].get("message") or {}).get("content", "").strip()
@@ -169,15 +124,17 @@ def readiness() -> str:
     if без_модели():
         return "модель не настроена: LLM_PROVIDER=none"
     if name == "anthropic":
-        return "" if env("ANTHROPIC_API_KEY") else             "не задан ANTHROPIC_API_KEY (или переключись на LLM_PROVIDER=ollama)"
+        if env("ANTHROPIC_API_KEY"):
+            return ""
+        return ("не задан ANTHROPIC_API_KEY (или подними свой сервер "
+                "и поставь LLM_PROVIDER=openai)")
     url, _, _ = build("проверка", "проверка", 8, name=name)
-    корень = url.split("/api/")[0].split("/v1/")[0]
+    корень = url.split("/v1/")[0]
     try:
         requests.get(корень, timeout=5)
         return ""
     except Exception:  # noqa: BLE001
-        return (f"{name}: сервер не отвечает на {корень} — "
-                f"запусти его (для Ollama: ollama serve)")
+        return f"{name}: сервер не отвечает на {корень} — запусти его"
 
 
 def complete(system: str, user: str, max_tokens: int = 8000,
@@ -205,11 +162,10 @@ def complete(system: str, user: str, max_tokens: int = 8000,
                 raise RuntimeError(f"пустой ответ: {json.dumps(data)[:300]}")
             return text
         except requests.ConnectionError as e:
-            if name in ("ollama", "openai"):
+            if name == "openai":
                 raise SystemExit(
                     f"[llm] {name}: сервер не отвечает на {url}.\n"
-                    f"  запусти его (для Ollama: ollama serve) или проверь "
-                    f"{'OLLAMA_BASE_URL' if name == 'ollama' else 'OPENAI_BASE_URL'}"
+                    f"  запусти его или проверь OPENAI_BASE_URL"
                 ) from e
             last = e
             print(f"[llm]   попытка {attempt + 1}: {e}")
