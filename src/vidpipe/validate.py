@@ -222,6 +222,27 @@ def check_clips(project) -> list[Issue]:
                                  f"{', '.join(first[1][:2])}",
                          "оставь по одному файлу на сцену"))
 
+    # Сборка верит числу в имени файла. Генератор нумерует кадры по порядку
+    # генерации, и стоит пропустить одну сцену, как всё дальше съезжает на
+    # единицу — молча. Живой случай: файл 037 содержал 56-ю сцену, картинка
+    # разошлась бы с голосом почти на весь ролик, и в логах этого не видно.
+    # Поэтому здесь имя сверяется с содержанием промпта.
+    if project.flow.exists():
+        from .clips import сопоставить
+        try:
+            сцены = json.loads(read_text(project.flow)).get("scenes") or []
+        except json.JSONDecodeError:
+            сцены = []
+        разъезд = [п for п in сопоставить(flat, сцены)["пары"]
+                   if п["номер_в_имени"] != п["сцена"]]
+        if разъезд:
+            п = разъезд[0]
+            out.append(Issue("stop",
+                             f"имена не совпадают со сценами ({len(разъезд)} шт.): "
+                             f"{п['файл'][:40]} — это сцена {п['сцена']}",
+                             "vidpipe clips посмотреть, vidpipe clips --apply "
+                             "переименовать"))
+
     if project.shotlist.exists():
         with project.shotlist.open(encoding="utf-8-sig") as f:
             need = [int(r["scene"]) for r in csv.DictReader(f)]
