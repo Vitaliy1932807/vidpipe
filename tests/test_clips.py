@@ -258,3 +258,47 @@ def test_номер_не_перебивает_текст(tmp_path, global_dir, c
     разбор = clips.сопоставить(clips.файлы_папки(p.dir / "clips"), СЦЕНЫ)
 
     assert разбор["пары"][0]["сцена"] == 3      # не 1, хотя в имени единица
+
+
+def test_тип_файла_решает_при_ничьей(tmp_path, global_dir, clean_env):
+    """Видео не может быть картинкой, даже если слова совпали один в один.
+
+    Живой случай: у сцены-картинки и сцены-видео в промптах оказались одни и
+    те же слова про пути в тумане. Видео село на картинку, потому что её
+    номер меньше, а своя сцена осталась пустой.
+    """
+    сцены = [
+        {"scene": 8, "prompt": "a single railway line and an embankment in fog",
+         "kind": "картинка"},
+        {"scene": 43, "prompt": "a single railway line in fog, nothing on the rails",
+         "kind": "видео"},
+    ]
+    p = проект(tmp_path, ["031-a-single-railway-line-in-fog-3021.mp4"], сцены=сцены)
+
+    разбор = clips.сопоставить(clips.файлы_папки(p.dir / "clips"), сцены)
+
+    assert [п["сцена"] for п in разбор["пары"]] == [43]
+    assert разбор["нет_клипа"] == [8]
+
+
+def test_картинка_на_сцену_картинку(tmp_path, global_dir, clean_env):
+    сцены = [
+        {"scene": 8, "prompt": "a single railway line and an embankment in fog",
+         "kind": "картинка"},
+        {"scene": 43, "prompt": "a single railway line in fog, nothing on the rails",
+         "kind": "видео"},
+    ]
+    p = проект(tmp_path, ["031-a-single-railway-line-in-fog-3021.jpeg"], сцены=сцены)
+
+    разбор = clips.сопоставить(clips.файлы_папки(p.dir / "clips"), сцены)
+
+    assert [п["сцена"] for п in разбор["пары"]] == [8]
+
+
+def test_текст_весомее_типа(tmp_path, global_dir, clean_env):
+    """Тип решает только при ничьей. Кадр, снятый не тем, всё равно свой."""
+    p = проект(tmp_path, ["001-a-cold-hearth-filled-with-grey-ash.mp4"])
+
+    разбор = clips.сопоставить(clips.файлы_папки(p.dir / "clips"), СЦЕНЫ)
+
+    assert разбор["пары"][0]["сцена"] == 3      # сцена 3 — картинка, файл видео
