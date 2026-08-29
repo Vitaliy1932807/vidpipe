@@ -4,6 +4,8 @@ from __future__ import annotations
 import csv
 import json
 
+import pytest
+
 from vidpipe.config import Project
 from vidpipe.steps import bible, flow
 
@@ -308,3 +310,31 @@ def test_профессия_в_промпте_считается_человек�
         кадр = flow.собрать({"prompt": промпт, "characters": ["KAP_01"],
                              "negative": ""}, глоб)
         assert "navy uniform" in кадр, промпт
+
+
+@pytest.mark.parametrize("запрет, снимается", [
+    ("no visible figure", True),        # так протекло на живом выпуске
+    ("no person", True),
+    ("no people in frame", True),
+    ("no one visible", True),
+    ("no person in the doorway", False),        # указание места, а не запрет
+    ("no people behind the window", False),
+    ("no bodies", False),                       # запрет содержания, не людей
+    ("", False),
+])
+def test_запрет_людей_отличает_общее_от_местного(запрет, снимается):
+    """Общий запрет спорит с описанием героя, местный — уточняет кадр."""
+    assert flow.запрет_людей(запрет) is снимается
+
+
+def test_описание_героя_не_едет_вместе_с_запретом_фигуры():
+    """Живой случай: девять сцен ушли с портретом человека и «no visible figure»."""
+    сцена = {"prompt": "a portrait of a man in an office, looking straight ahead",
+             "characters": ["RODE"], "negative": "no visible figure, no logos"}
+    глоб = {"characters": {"RODE": "Male, early 50s, narrow face, round glasses."}}
+
+    текст = flow.собрать(сцена, глоб)
+
+    assert "narrow face" in текст          # герой описан
+    assert "no visible figure" not in текст
+    assert "no logos" in текст             # чужие запреты не задеты
