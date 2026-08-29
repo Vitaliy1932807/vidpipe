@@ -418,3 +418,35 @@ def test_раскладка_ложится_рядом_с_выпуском(tmp_pa
     assert (p.dir / "промпты-видео.txt").exists()
     assert (p.dir / "промпты-картинки.txt").exists()
     assert сделано["видео"][1] == 1 and сделано["картинка"][1] == 2
+
+
+@pytest.mark.parametrize("промпт, человек", [
+    ("a keyman standing on the track", True),
+    ("an old gateman on a bench", True),
+    ("a trackman with a hammer", True),
+    ("a watchman at the crossing", True),
+    ("a specimen in a glass case", False),     # музей, не человек
+    ("bitumen spread on the road", False),     # пути, не человек
+    ("a lumen of soft light", False),
+])
+def test_профессии_на_man_считаются_людьми(промпт, человек):
+    """Список профессий поимённый не держится: каждый канал приносит свои.
+
+    Индийский выпуск про путевого обходчика принёс keyman и gateman разом, и
+    проверка «герой указан, а в кадре его нет» объявила призраками тридцать
+    одну сцену из шестидесяти четырёх. Суффикс -man надёжнее списка, но не
+    всякое слово на -men человек, и эти встречаются в наших же кадрах.
+    """
+    assert flow.есть_люди(промпт) is человек
+
+
+def test_описание_подставляется_профессии_из_другого_канала():
+    """Герой-обходчик должен получать описание из библии, как и все прочие."""
+    сцена = {"prompt": "a keyman standing alone on the track",
+             "characters": ["SHIVNATH"], "negative": "no ghost figure"}
+    глоб = {"characters": {"SHIVNATH": "Male, about 45, lean and wiry."}}
+
+    кадр = flow.собрать(сцена, глоб)
+
+    assert "lean and wiry" in кадр
+    assert "no ghost figure" in кадр      # запрет не про людей, остаётся
