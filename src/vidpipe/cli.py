@@ -233,14 +233,22 @@ def cmd_channels(args) -> None:
     print(f"каналы (CHANNELS_ROOT={корни}):")
     print()
     for имя, путь in sorted(каналы.items()):
-        выпуски = sorted(d.name for d in путь.iterdir()
-                         if d.is_dir() and d.name.isdigit())
+        # Выпуск — папка, в которой конвейеру есть с чем работать. По имени
+        # судить нельзя: выпуски бывают и «5», и «Тенерифе, 27 марта 1977»,
+        # а рядом с ними лежат music, заставки и черновики. Считали по числу
+        # в имени — и канал с именованными выпусками показывал ноль.
+        выпуски = sorted(d.name for d in путь.iterdir() if d.is_dir()
+                         and ((d / "prompt.md").exists()
+                              or (d / "script.md").exists()))
+        # Номер всё равно берётся из нумерованных: пустая папка «6» его занимает.
+        номера = [int(d.name) for d in путь.iterdir()
+                  if d.is_dir() and d.name.isdigit()]
         журнал = путь / "series.jsonl"
         строк = 0
         if журнал.exists():
             строк = len([x for x in журнал.read_text(encoding="utf-8-sig")
                         .splitlines() if x.strip()])
-        след = str(max((int(x) for x in выпуски), default=0) + 1)
+        след = str(max(номера, default=0) + 1)
         print(f"  {имя:12} {путь}")
         print(f"  {'':12} выпусков {len(выпуски)}, в журнале {строк}, "
               f"следующий — {след}")

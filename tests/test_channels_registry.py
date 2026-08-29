@@ -141,3 +141,54 @@ def test_команда_channels_подсказывает_когда_пусто(
     вывод = capsys.readouterr().out
     assert "каналов не найдено" in вывод
     assert "CHANNELS_ROOT" in вывод
+
+
+def выпуск(канал, имя, файл="script.md"):
+    d = канал / имя
+    d.mkdir(parents=True, exist_ok=True)
+    (d / файл).write_text("текст выпуска", encoding="utf-8")
+    return d
+
+
+def test_выпуск_с_именем_вместо_номера_считается(tmp_path, clean_env, capsys):
+    """Живой случай: канал с двумя выпусками показывал ноль.
+
+    Считали папки с числовым именем, а выпуски там назывались «Тенерифе,
+    27 марта 1977». По списку выходило, что канал пустой.
+    """
+    канал = завести(tmp_path / "История МИРА", "kak-bylo")
+    выпуск(канал, "Тенерифе, 27 марта 1977")
+    выпуск(канал, "Янтарная комната", файл="prompt.md")
+    os.environ["CHANNELS_ROOT"] = str(tmp_path)
+
+    cli.cmd_channels(argparse.Namespace(json=False))
+
+    assert "выпусков 2" in capsys.readouterr().out
+
+
+def test_папки_без_материалов_выпусками_не_считаются(tmp_path, clean_env, capsys):
+    """Рядом с выпусками живут music, заставки и черновики превью."""
+    канал = завести(tmp_path / "История МИРА", "kak-bylo")
+    выпуск(канал, "Тенерифе, 27 марта 1977")
+    for мусор in ("music", "заставка", "_превью"):
+        (канал / мусор).mkdir()
+    (канал / "_превью" / "voice.mp3").write_bytes(b"0")
+    os.environ["CHANNELS_ROOT"] = str(tmp_path)
+
+    cli.cmd_channels(argparse.Namespace(json=False))
+
+    assert "выпусков 1" in capsys.readouterr().out
+
+
+def test_пустая_нумерованная_папка_занимает_номер(tmp_path, clean_env, capsys):
+    """Выпуск завели, работать не начали — номер уже занят."""
+    канал = завести(tmp_path / "Новая История", "hindi")
+    выпуск(канал, "2")
+    (канал / "6").mkdir()
+    os.environ["CHANNELS_ROOT"] = str(tmp_path)
+
+    cli.cmd_channels(argparse.Namespace(json=False))
+
+    вывод = capsys.readouterr().out
+    assert "выпусков 1" in вывод          # пустая шестёрка не выпуск
+    assert "следующий — 7" in вывод       # но номер её
