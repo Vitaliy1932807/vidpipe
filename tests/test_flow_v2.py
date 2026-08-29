@@ -338,3 +338,34 @@ def test_описание_героя_не_едет_вместе_с_запрет�
     assert "narrow face" in текст          # герой описан
     assert "no visible figure" not in текст
     assert "no logos" in текст             # чужие запреты не задеты
+
+
+@pytest.mark.parametrize("промпт, человек", [
+    ("a man raises a torch", True),
+    ("two pilots in the cockpit", True),
+    ("archaeologists at work", True),
+    ("a crowd of people", True),
+    ("rows of dials on an instrument panel", False),   # men внутри instrument
+    ("a handset vibrating on a desk", False),          # hand внутри handset
+    ("a crowded apron seen from above", False),        # crowd внутри crowded
+    ("a documentary about steam engines", False),
+])
+def test_человек_опознаётся_по_слову_целиком(промпт, человек):
+    """Список сверялся подстрокой, и instrument открывал ворота как «men».
+
+    Само по себе это молчало, пока в сцене не указан герой. Зато отключало
+    проверку «герой указан, а в кадре его нет»: она считала, что человек есть.
+    """
+    assert flow.есть_люди(промпт) is человек
+
+
+def test_ложный_человек_не_снимает_запрет_людей():
+    """Кадр без людей должен сохранить свой запрет, даже если в слове есть men."""
+    сцена = {"prompt": "rows of dials on an instrument panel",
+             "characters": ["RODE"], "negative": "no person"}
+    глоб = {"characters": {"RODE": "Male, early 50s, round glasses."}}
+
+    кадр = flow.собрать(сцена, глоб)
+
+    assert "no person" in кадр          # запрет на месте
+    assert "round glasses" not in кадр  # описывать в этом кадре некого

@@ -169,8 +169,7 @@ def check_flow(project) -> list[Issue]:
     # такое описание выбрасывает, но исходные данные стоит поправить.
     призраки = [с.get("scene") for с in сцены
                 if с.get("characters")
-                and not any(ч in (с.get("prompt") or "").lower()
-                            for ч in шаг.ЛЮДИ_В_ПРОМПТЕ)]
+                and not шаг.есть_люди(с.get("prompt") or "")]
     if призраки:
         out.append(Issue("warn",
                          f"герой указан, а в кадре его нет: {перечислить(призраки)}",
