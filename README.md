@@ -242,8 +242,7 @@ vidpipe channels
 скрипта:
 
 ```powershell
-& "G:\Aidpipeidpipe	ools
-ew-episode.ps1" -Channel en -Topic "The Fifth Milepost"
+& "G:\A\vidpipe\vidpipe\tools\new-episode.ps1" -Channel en -Topic "The Fifth Milepost"
 ```
 
 ## Выпуск по шагам
@@ -254,8 +253,7 @@ ew-episode.ps1" -Channel en -Topic "The Fifth Milepost"
 канала — скрипт его не сочиняет:
 
 ```powershell
-& "G:\Aidpipeidpipe	ools
-ew-episode.ps1" -Channel kak-bylo -Topic "Пожар в MGM Grand"
+& "G:\A\vidpipe\vidpipe\tools\new-episode.ps1" -Channel kak-bylo -Topic "Пожар в MGM Grand"
 ```
 
 **Если писать некому.** Ключ `-Text` отдаёт досье, сценарий, разбор и
@@ -264,15 +262,13 @@ ew-episode.ps1" -Channel kak-bylo -Topic "Пожар в MGM Grand"
 на 14 миллиардов параметров держит её структуру, но не уровень.
 
 ```powershell
-& "G:\Aidpipeidpipe	ools
-ew-episode.ps1" -Channel kak-bylo -Episode "Пожар в MGM Grand" -Text
+& "G:\A\vidpipe\vidpipe\tools\new-episode.ps1" -Channel kak-bylo -Episode "Пожар в MGM Grand" -Text
 ```
 
 **Текст готов.** Озвучка, субтитры, раскадровка:
 
 ```powershell
-& "G:\Aidpipeidpipe	ools
-ew-episode.ps1" -Channel kak-bylo -Episode "Пожар в MGM Grand" -Produce
+& "G:\A\vidpipe\vidpipe\tools\new-episode.ps1" -Channel kak-bylo -Episode "Пожар в MGM Grand" -Produce
 ```
 
 Шаги `script` и `review` сюда не входят намеренно: текст уже написан, и
@@ -289,15 +285,31 @@ ew-episode.ps1" -Channel kak-bylo -Episode "Пожар в MGM Grand" -Produce
 Нужны они всё же от модели:
 
 ```powershell
-& "G:\Aidpipeidpipe	ools
-ew-episode.ps1" -Channel kak-bylo -Episode "Пожар в MGM Grand" -Prompts
+& "G:\A\vidpipe\vidpipe\tools\new-episode.ps1" -Channel kak-bylo -Episode "Пожар в MGM Grand" -Prompts
 ```
+
+**Кадры по сценам.** Генератор нумерует клипы по порядку генерации, а сборка
+читает первое число в имени файла. Пока сцены снимают подряд, это одно и то же.
+Пропущена хоть одна — и всё дальше съезжает, молча:
+
+```powershell
+vidpipe clips
+```
+
+Команда сверяет имя каждого файла с промптом сцены и показывает, что чему
+принадлежит; `--apply` переименовывает, прежние имена ложатся в
+`карта-переименования.json` рядом. Недостающие сцены она делит на видео и
+картинки: дорисовать и снять — разная работа.
+
+Живой случай, ради которого это написано: в готовой папке файл `037` содержал
+пятьдесят шестую сцену, остывший очаг из финала. Картинка разошлась бы с
+голосом почти на весь ролик, и в логах этого не было бы видно. Поэтому приёмка
+перед сборкой на таком разъезде теперь останавливается.
 
 **Клипы готовы.** Сложены в `<выпуск>\clips` — собираем видео:
 
 ```powershell
-& "G:\Aidpipeidpipe	ools
-ew-episode.ps1" -Channel kak-bylo -Episode "Пожар в MGM Grand" -Assemble
+& "G:\A\vidpipe\vidpipe\tools\new-episode.ps1" -Channel kak-bylo -Episode "Пожар в MGM Grand" -Assemble
 ```
 
 Имя папки выпуска подстраивается под обычай канала: где выпуски пронумерованы
