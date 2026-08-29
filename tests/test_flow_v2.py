@@ -450,3 +450,52 @@ def test_описание_подставляется_профессии_из_д�
 
     assert "lean and wiry" in кадр
     assert "no ghost figure" in кадр      # запрет не про людей, остаётся
+
+
+def test_предмет_описывается_и_без_людей_в_кадре():
+    """Молоток остаётся тем же молотком, есть рядом человек или нет.
+
+    Раньше описания людей и предметов отбрасывались разом, и весь раздел
+    предметов молча не доезжал до кадров без людей — то есть ровно до тех,
+    ради которых он и заводился.
+    """
+    сцена = {"prompt": "an old register lying closed in an empty room",
+             "characters": ["REGISTER"], "negative": ""}
+    глоб = {"characters": {}, "objects": {"REGISTER": "A cloth-bound book, torn cover."}}
+
+    кадр = flow.собрать(сцена, глоб)
+
+    assert "torn cover" in кадр
+
+
+def test_описание_героя_без_человека_в_кадре_не_подставляется():
+    """А вот человека, которого в кадре нет, описывать по-прежнему нечего."""
+    сцена = {"prompt": "an old register lying closed in an empty room",
+             "characters": ["RODE", "REGISTER"], "negative": ""}
+    глоб = {"characters": {"RODE": "Male, early 50s, round glasses."},
+            "objects": {"REGISTER": "A cloth-bound book, torn cover."}}
+
+    кадр = flow.собрать(сцена, глоб)
+
+    assert "torn cover" in кадр
+    assert "round glasses" not in кадр
+
+
+def test_предмет_в_сцене_без_людей_не_считается_призраком(tmp_path, global_dir,
+                                                          clean_env):
+    """Приёмка ругалась на предметы так же, как на пропавших героев."""
+    import json
+    from vidpipe.checks import check_flow
+
+    project = подготовить(tmp_path)
+    project.flow.write_text(json.dumps({
+        "scenes": [{"scene": 1, "prompt": "a hammer standing against a rail",
+                    "characters": ["HAMMER"], "narration": "", "duration": 8}],
+        "global": {"characters": {"PETR_01": "Male, 52."},
+                   "objects": {"HAMMER": "A long-handled hammer."},
+                   "style": "cinematic"},
+    }, ensure_ascii=False), encoding="utf-8")
+
+    находки = [и.what for и in check_flow(project)]
+
+    assert not [и for и in находки if "в кадре его нет" in и], находки
