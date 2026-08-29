@@ -22,6 +22,55 @@ def _run(args: list[str]) -> None:
         raise SystemExit(f"[assemble] ffmpeg упал:\n{r.stderr[-800:]}")
 
 
+def найти_музыку(project) -> Path | None:
+    """Файл фоновой музыки: MUSIC_FILE или music.mp3 рядом с выпуском/каналом.
+
+    Пустое значение MUSIC_FILE — это осознанное «без музыки», а не забывчивость:
+    канал может включить фон, а отдельный выпуск его снять.
+    """
+    import os
+
+    задано = env("MUSIC_FILE", "").strip()
+    if задано:
+        p = Path(задано).expanduser()
+        if p.is_absolute():
+            return p if p.exists() else None
+        for корень in (project.dir, project.channel_root):
+            if корень and (корень / p).exists():
+                return корень / p
+        return None
+    if "MUSIC_FILE" in os.environ:
+        return None                 # задано пустым: музыки не надо
+    for корень in (project.dir, project.channel_root):
+        if корень and (корень / "music.mp3").exists():
+            return корень / "music.mp3"
+    return None
+
+
+def звуковой_фильтр(длительность: float, вход: int = 2) -> str:
+    """Музыка под голосом: приглушена, с подъёмами и уступает диктору.
+
+    Ровный фон на одной громкости с диктором не уживается: там, где голос
+    тише, музыка лезет вперёд, а где громче — глохнет сама. Поэтому громкость
+    музыки ведёт сам голос через боковую цепь: диктор говорит — фон уходит
+    вниз, диктор молчит — фон возвращается. Это то же, что делают руками на
+    сведении, только считает ffmpeg.
+    """
+    усиление = env("MUSIC_GAIN_DB", "-20")
+    подъём = float(env("MUSIC_FADE_SEC", "3"))
+    уход = max(0.0, длительность - подъём)
+    порог = env("MUSIC_DUCK_THRESHOLD", "0.02")
+    сила = env("MUSIC_DUCK_RATIO", "8")
+    return (
+        f"[{вход}:a]volume={усиление}dB,"
+        f"afade=t=in:st=0:d={подъём:g},"
+        f"afade=t=out:st={уход:g}:d={подъём:g}[m];"
+        f"[m][1:a]sidechaincompress="
+        f"threshold={порог}:ratio={сила}:attack=5:release=400[md];"
+        f"[1:a][md]amix=inputs=2:normalize=0:duration=first[aout]"
+    )
+
+
 def find_clips(folder: Path) -> dict[int, Path]:
     """Кадры сопоставляются по первому числу в имени файла: 01.mp4, scene_7.png,
     12-boundary-stone.jpg — всё подойдёт."""
@@ -172,6 +221,7 @@ def run(project, force: bool = False) -> None:
 
     size = env("VIDEO_SIZE", "1920x1080")
     fps = env_int("VIDEO_FPS", 0) or _source_fps(clips, rows) or 30
+    итого = sum(float(r["duration"]) for r in rows)
     print(f"[assemble] {len(rows)} сцен, {size} @ {fps}fps")
 
     parts = []
@@ -194,14 +244,36 @@ def run(project, force: bool = False) -> None:
     args = [ffmpeg_bin(), "-hide_banner", "-loglevel", "error", "-y",
             "-i", str(silent), "-i", str(project.voice_mp3)]
 
+    музыка = найти_музыку(project)
+    if музыка:
+        # Дорожка почти всегда короче ролика: зацикливаем, лишнее обрежется.
+        args += ["-stream_loop", "-1", "-i", str(музыка)]
+        print(f"[assemble] музыка: {музыка.name} "
+              f"({env('MUSIC_GAIN_DB', '-20')} дБ, уступает диктору)")
+
     burn = env("BURN_SUBS", "0").lower() in ("1", "true", "yes")
-    if burn and project.srt.exists():
+    впечатать = burn and project.srt.exists()
+    if впечатать:
         # ffmpeg на Windows требует экранировать двоеточие диска в пути фильтра
         path = project.srt.resolve().as_posix().replace(":", "\\:")
         style = env("SUB_STYLE", "FontSize=22,Outline=2,MarginV=60")
-        args += ["-vf", f"subtitles='{path}':force_style='{style}'",
-                 "-c:v", "libx264", "-preset", "medium", "-pix_fmt", "yuv420p"]
+        субтитры = f"subtitles='{path}':force_style='{style}'"
         print("[assemble] субтитры впечатываются в картинку")
+
+    if музыка:
+        # -vf и -filter_complex вместе ffmpeg не берёт, поэтому когда есть
+        # музыка, вся обработка идёт одной схемой.
+        цепочки = []
+        if впечатать:
+            цепочки.append(f"[0:v]{субтитры}[v]")
+        цепочки.append(звуковой_фильтр(итого))
+        args += ["-filter_complex", ";".join(цепочки),
+                 "-map", "[v]" if впечатать else "0:v", "-map", "[aout]"]
+        args += (["-c:v", "libx264", "-preset", "medium", "-pix_fmt", "yuv420p"]
+                 if впечатать else ["-c:v", "copy"])
+    elif впечатать:
+        args += ["-vf", субтитры,
+                 "-c:v", "libx264", "-preset", "medium", "-pix_fmt", "yuv420p"]
     else:
         args += ["-c:v", "copy"]
 
