@@ -164,3 +164,45 @@ def test_правильные_имена_сборку_не_держат(tmp_path
     p = проект(tmp_path, ["003-a-cold-hearth-filled-with-grey-11.mp4"])
 
     assert not [и for и in check_clips(p) if "не совпадают" in и.what]
+
+
+def test_кадры_из_вложенной_папки_находятся(tmp_path, global_dir, clean_env):
+    """Генератор отдаёт партию архивом, она разворачивается в подпапку.
+
+    Кадры при этом настоящие, а сборка их не видела и собиралась неполной.
+    """
+    p = проект(tmp_path, ["001-a-wide-empty-snowy-road-disappearing-11.mp4"])
+    вложенная = p.dir / "clips" / "1"
+    вложенная.mkdir()
+    (вложенная / "007_a-cold-hearth-filled-with-grey-ash.png").write_bytes(b"0")
+
+    разбор = clips.сопоставить(clips.файлы_папки(p.dir / "clips"), СЦЕНЫ)
+
+    assert sorted(п["сцена"] for п in разбор["пары"]) == [1, 3]
+
+
+def test_apply_поднимает_кадры_наверх(tmp_path, global_dir, clean_env):
+    p = проект(tmp_path, [])
+    вложенная = p.dir / "clips" / "1"
+    вложенная.mkdir()
+    (вложенная / "007_a-cold-hearth-filled-with-grey-ash.png").write_bytes(b"0")
+
+    прогнать(p, apply=True)
+
+    assert (p.dir / "clips" / "003-a-cold-hearth-filled-with-grey-ash.png").exists()
+    assert not (вложенная / "007_a-cold-hearth-filled-with-grey-ash.png").exists()
+
+
+def test_сборка_не_идёт_мимо_вложенной_папки(tmp_path, global_dir, clean_env):
+    """Часть кадров наверху, часть в подпапке — раньше проезжало молча."""
+    from vidpipe.validate import check_clips
+
+    p = проект(tmp_path, ["001-a-wide-empty-snowy-road-disappearing-11.mp4"])
+    вложенная = p.dir / "clips" / "1"
+    вложенная.mkdir()
+    (вложенная / "007_a-cold-hearth-filled-with-grey-ash.png").write_bytes(b"0")
+
+    стоп = [и for и in check_clips(p) if и.level == "stop"]
+
+    assert any("вложенных папках" in и.what for и in стоп), [и.what for и in стоп]
+    assert any("vidpipe clips --apply" in и.fix for и in стоп)

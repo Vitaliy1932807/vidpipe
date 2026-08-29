@@ -197,11 +197,17 @@ def check_clips(project) -> list[Issue]:
     nested = [p for p in folder.iterdir() if p.is_dir()]
     flat = [p for p in folder.iterdir()
             if p.is_file() and p.suffix.lower() in IMAGES | VIDEOS]
-    if nested and not flat:
-        out.append(Issue("stop", f"кадры лежат во вложенных папках ({len(nested)} шт.)",
-                         f"cd {folder.name}; Get-ChildItem -Recurse -File | "
-                         f"Move-Item -Destination . -Force; "
-                         f"Get-ChildItem -Directory | Remove-Item -Recurse -Force"))
+    # Партия из генератора разворачивается в подпапку, и кадры в ней сборке
+    # не видны. Раньше про это говорили, только если наверху не было вообще
+    # ничего: смешанный случай, когда часть кадров наверху, а часть в папке,
+    # проезжал молча и собирался неполным.
+    from .clips import файлы_папки
+    вложенные = [f for f in файлы_папки(folder) if f.parent != folder]
+    if вложенные:
+        out.append(Issue("stop",
+                         f"кадры лежат во вложенных папках: {len(вложенные)} шт.",
+                         "vidpipe clips --apply поднимет их наверх "
+                         "и расставит по сценам"))
         return out
 
     found: dict[int, list[Path]] = {}
