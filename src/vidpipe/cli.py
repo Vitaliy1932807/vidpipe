@@ -81,7 +81,7 @@ def cmd_run(args) -> None:
            "WHISPER_LANG": "ru", "FW_MODEL_SIZE": "medium"},
     "en": {"DEFAULT_LANG": "English", "WORDS_PER_MIN": "140",   # догадка
            "WHISPER_LANG": "en", "FW_MODEL_SIZE": "medium"},
-    "de": {"DEFAULT_LANG": "Deutsch", "WORDS_PER_MIN": "125",   # догадка
+    "de": {"DEFAULT_LANG": "Deutsch", "WORDS_PER_MIN": "119",   # замерено
            "WHISPER_LANG": "de", "FW_MODEL_SIZE": "medium"},
     "hi": {"DEFAULT_LANG": "Hindi", "WORDS_PER_MIN": "157",     # замерено
            "WHISPER_LANG": "hi", "FW_MODEL_SIZE": "large-v3"},
@@ -111,11 +111,11 @@ def channel_env(name: str, lang: str | None = None) -> str:
         строки = [
             "# --- язык и темп речи ---",
             "# DEFAULT_LANG=Hindi             # Hindi / русский / English",
-            "# WORDS_PER_MIN=147              # 147 хинди, 150 русский, 140 английский",
+            "# WORDS_PER_MIN=157              # замеры: 157 хинди, 128 русский, 119 немецкий",
             "",
             "# --- субтитры ---",
-            "# WHISPER_LANG=hi                # ru / hi / en",
-            "# FW_MODEL_SIZE=large-v3         # хинди просит large-v3, ru и en — medium",
+            "# WHISPER_LANG=hi                # ru / hi / de / en",
+            "# FW_MODEL_SIZE=large-v3         # хинди просит large-v3, остальным хватает medium",
         ]
     настройки = "\n".join(строки)
     return f"""# ============ Канал: {name} ============
