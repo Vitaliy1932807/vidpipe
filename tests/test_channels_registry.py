@@ -84,7 +84,7 @@ def test_пресет_подставляет_настройки_языка():
 def test_у_хинди_своя_модель_распознавания():
     """На хинди medium разваливается — нужен large-v3."""
     assert "FW_MODEL_SIZE=large-v3" in cli.channel_env("hindi", "hi")
-    assert "WORDS_PER_MIN=147" in cli.channel_env("hindi", "hi")
+    assert "WORDS_PER_MIN=157" in cli.channel_env("hindi", "hi")   # замерено
 
 
 def test_без_языка_настройки_остаются_закомментированными():
@@ -192,3 +192,29 @@ def test_пустая_нумерованная_папка_занимает_но�
     вывод = capsys.readouterr().out
     assert "выпусков 1" in вывод          # пустая шестёрка не выпуск
     assert "следующий — 7" in вывод       # но номер её
+
+
+def test_немецкий_язык_есть_в_пресетах():
+    """Новый язык — строка в таблице, и больше нигде ничего править не нужно."""
+    assert "de" in cli.ЯЗЫКИ
+    assert cli.ЯЗЫКИ["de"]["WHISPER_LANG"] == "de"
+
+
+def test_темп_речи_взят_из_замеров_а_не_из_головы():
+    """Догадки врали: у русского стояло 150 при замеренных 128, у хинди 147 при 157.
+
+    Ошибка в этом числе стоит полутора минут хронометража на каждом ролике.
+    """
+    assert cli.ЯЗЫКИ["ru"]["WORDS_PER_MIN"] == "128"
+    assert cli.ЯЗЫКИ["hi"]["WORDS_PER_MIN"] == "157"
+
+
+def test_канал_на_новом_языке_заводится_без_правки_кода(tmp_path, clean_env, capsys):
+    import argparse
+    корень = tmp_path / "Немецкий канал"
+
+    cli.make_channel("de", root=корень, lang="de")
+
+    env = (корень / ".vidpipe-channel" / ".env").read_text(encoding="utf-8")
+    assert "WHISPER_LANG=de" in env
+    assert "DEFAULT_LANG=Deutsch" in env

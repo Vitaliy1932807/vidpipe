@@ -69,12 +69,21 @@ def cmd_run(args) -> None:
 
 # Что отличает канал на другом языке. Добавляешь язык — добавляешь строку,
 # и больше нигде ничего править не нужно.
+#
+# WORDS_PER_MIN здесь — стартовая догадка, и догадки эти врали. У русского
+# стояло 150, замер по готовой озвучке дал 128. У хинди стояло 147, замер по
+# пяти выпускам дал 157. Ошибка в этом числе стоит полутора минут хронометража
+# на каждом ролике, поэтому после первой же озвучки его нужно перемерить:
+# слова в voice.txt поделить на длину voice.mp3. Пометка «замерено» ниже
+# означает, что число получено так, а не взято из головы.
 ЯЗЫКИ = {
-    "ru": {"DEFAULT_LANG": "русский", "WORDS_PER_MIN": "150",
+    "ru": {"DEFAULT_LANG": "русский", "WORDS_PER_MIN": "128",   # замерено
            "WHISPER_LANG": "ru", "FW_MODEL_SIZE": "medium"},
-    "en": {"DEFAULT_LANG": "English", "WORDS_PER_MIN": "140",
+    "en": {"DEFAULT_LANG": "English", "WORDS_PER_MIN": "140",   # догадка
            "WHISPER_LANG": "en", "FW_MODEL_SIZE": "medium"},
-    "hi": {"DEFAULT_LANG": "Hindi", "WORDS_PER_MIN": "147",
+    "de": {"DEFAULT_LANG": "Deutsch", "WORDS_PER_MIN": "125",   # догадка
+           "WHISPER_LANG": "de", "FW_MODEL_SIZE": "medium"},
+    "hi": {"DEFAULT_LANG": "Hindi", "WORDS_PER_MIN": "157",     # замерено
            "WHISPER_LANG": "hi", "FW_MODEL_SIZE": "large-v3"},
 }
 
