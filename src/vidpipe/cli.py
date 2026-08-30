@@ -200,6 +200,16 @@ def cmd_init(args) -> None:
     project = Project.load(args.dir)
     script_gen.make_prompt(project, args.topic or "БЕЗ ТЕМЫ — впиши сюда",
                            force=args.force)
+
+    # Папку под кадры заводим сразу. Раньше её делали руками, и каждый выпуск
+    # начинался одинаково: шаг assemble падал с «нет папки clips», человек шёл
+    # её создавать. Пустая папка ничего не стоит, а её отсутствие стоит одного
+    # оборванного прогона на каждом ролике.
+    кадры = project.dir / env("CLIPS_DIR", "clips")
+    if not кадры.exists():
+        кадры.mkdir(parents=True)
+        print(f"[init] создана {кадры.name} — сюда кладутся кадры из генератора")
+
     if args.style:
         dst = project.dir / "assets.md"
         if dst.exists() and not args.force:

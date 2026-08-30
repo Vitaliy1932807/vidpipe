@@ -184,3 +184,37 @@ def test_после_правки_env_канала_настройка_приме�
     load_env(video)
 
     assert env("WORDS_PER_MIN") == "150"
+
+
+def test_папка_под_кадры_заводится_сразу(tmp_path, global_dir, clean_env, capsys):
+    """Каждый выпуск начинался с одного и того же: assemble падал на «нет clips».
+
+    Пустая папка ничего не стоит, а её отсутствие стоит оборванного прогона.
+    """
+    import argparse
+    from vidpipe import cli
+
+    make_channel_dir(tmp_path / "канал", CHANNEL_NAME="kb")
+    d = tmp_path / "канал" / "выпуск"
+
+    cli.cmd_init(argparse.Namespace(dir=str(d), topic="тема", force=False,
+                                    style=False, channel=None, global_config=False))
+
+    assert (d / "clips").is_dir()
+    assert "clips" in capsys.readouterr().out
+
+
+def test_существующая_папка_кадров_не_трогается(tmp_path, global_dir, clean_env):
+    """Повторный init не должен ничего сносить: там уже могут лежать кадры."""
+    import argparse
+    from vidpipe import cli
+
+    make_channel_dir(tmp_path / "канал", CHANNEL_NAME="kb")
+    d = tmp_path / "канал" / "выпуск"
+    (d / "clips").mkdir(parents=True)
+    (d / "clips" / "001-кадр.mp4").write_bytes(b"0")
+
+    cli.cmd_init(argparse.Namespace(dir=str(d), topic="тема", force=False,
+                                    style=False, channel=None, global_config=False))
+
+    assert (d / "clips" / "001-кадр.mp4").exists()
