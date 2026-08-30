@@ -173,9 +173,12 @@ def test_после_правки_env_канала_настройка_приме�
     monkeypatch.chdir(tmp_path)
     cli.make_channel("ru")
     env_file = tmp_path / config.CHANNEL_MARKER / ".env"
+    # раскомментировать строку, не цепляясь за само число в подсказке:
+    # оно менялось вместе с замерами и ломало тест на ровном месте
+    import re
     env_file.write_text(
-        env_file.read_text(encoding="utf-8-sig").replace(
-            "# WORDS_PER_MIN=147", "WORDS_PER_MIN=150"),
+        re.sub(r"#\s*WORDS_PER_MIN=\d+", "WORDS_PER_MIN=150",
+               env_file.read_text(encoding="utf-8-sig")),
         encoding="utf-8")
     video = tmp_path / "выпуск"
     video.mkdir()
