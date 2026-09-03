@@ -18,6 +18,7 @@ from .approve import cmd_ok
 from .audit import cmd_audit
 from .finish import cmd_finish
 from .marks import cmd_marks
+from .replace import cmd_replace
 from .clips import cmd_clips
 from .validate import cmd_doctor, preflight
 from .voices import cmd_voices
@@ -443,11 +444,21 @@ def main() -> None:
                         "клипов и без CLIP")
     a.set_defaults(func=cmd_audit)
 
+    rp = sub.add_parser("replace", parents=[common],
+                        help="поставить перегенерированный кадр на место сцены")
+    rp.add_argument("scene", type=int, nargs="?",
+                    help="номер сцены; можно не указывать — определится по имени файла")
+    rp.add_argument("file", help="новый файл")
+    rp.add_argument("--проба", action="store_true",
+                    help="показать, что было бы сделано")
+    rp.set_defaults(func=cmd_replace)
+
     m = sub.add_parser("marks", parents=[common],
                        help="убрать из кадра надпись или водяной знак")
     m.add_argument("file", help="файл клипа или картинки")
-    m.add_argument("--box", metavar="x0,y0,x1,y1",
-                   help="рамка в долях кадра")
+    m.add_argument("--box", metavar="x0,y0,x1,y1", action="append",
+                   help="рамка в долях кадра; можно повторить, если надписей "
+                        "в кадре несколько — все уберутся за один проход")
     m.add_argument("--знак", action="store_true",
                    help="снять водяной знак генератора (рамка не нужна)")
     m.add_argument("--альфа", type=float,
