@@ -119,6 +119,7 @@ def _снять_знак(папка: Path, проба: bool) -> tuple[int, int, 
 
 def cmd_finish(args) -> None:
     _нужен_cv2()
+    from .approve import не_принят
     from .audit import cmd_audit
     from .layout import разложить, разобрать
     from .steps import assemble
@@ -195,8 +196,17 @@ def cmd_finish(args) -> None:
             print("сборка: video.mp4 уже есть, для пересборки нужен --force",
                   flush=True)
         else:
-            print("сборка: идёт...", flush=True)
-            assemble.run(project, force=True)
+            # Контроль подтверждения обходить нельзя: он ловит правку текста
+            # после проверки. Раньше finish собирал мимо него, а vidpipe run
+            # на той же папке останавливался — команды говорили разное.
+            почему = не_принят(project)
+            if почему:
+                print("сборка: пропущена — %s" % почему, flush=True)
+                print("    прочитай script.md, потом подтверди: vidpipe ok",
+                      flush=True)
+            else:
+                print("сборка: идёт...", flush=True)
+                assemble.run(project, force=True)
 
     # 4. проверка
     if фильм.exists() and not args.без_проверки:
