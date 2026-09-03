@@ -15,6 +15,9 @@ from . import __version__
 from .series import cmd_series
 from .checks import postflight
 from .approve import cmd_ok
+from .audit import cmd_audit
+from .finish import cmd_finish
+from .marks import cmd_marks
 from .clips import cmd_clips
 from .validate import cmd_doctor, preflight
 from .voices import cmd_voices
@@ -81,7 +84,7 @@ def cmd_run(args) -> None:
            "WHISPER_LANG": "ru", "FW_MODEL_SIZE": "medium"},
     "en": {"DEFAULT_LANG": "English", "WORDS_PER_MIN": "140",   # догадка
            "WHISPER_LANG": "en", "FW_MODEL_SIZE": "medium"},
-    "de": {"DEFAULT_LANG": "Deutsch", "WORDS_PER_MIN": "119",   # замерено
+    "de": {"DEFAULT_LANG": "Deutsch", "WORDS_PER_MIN": "122",   # замерено
            "WHISPER_LANG": "de", "FW_MODEL_SIZE": "medium"},
     "hi": {"DEFAULT_LANG": "Hindi", "WORDS_PER_MIN": "157",     # замерено
            "WHISPER_LANG": "hi", "FW_MODEL_SIZE": "large-v3"},
@@ -418,6 +421,57 @@ def main() -> None:
     ser = sub.add_parser("series", parents=[common],
                          help="журнал серии: какие приёмы уже использованы")
     ser.set_defaults(func=cmd_series)
+
+    fin = sub.add_parser("finish", parents=[common],
+                         help="всё по порядку: разложить, снять знак, собрать, "
+                              "проверить, назвать что осталось")
+    fin.add_argument("--проба", action="store_true",
+                     help="показать, что было бы сделано, ничего не меняя")
+    fin.add_argument("--без-знака", dest="без_знака", action="store_true",
+                     help="не трогать водяной знак")
+    fin.add_argument("--без-проверки", dest="без_проверки", action="store_true",
+                     help="не гонять аудит в конце")
+    fin.add_argument("--fast", action="store_true",
+                     help="короткий аудит: без разбора клипов и без сверки промптов")
+    fin.set_defaults(func=cmd_finish)
+
+    a = sub.add_parser("audit", parents=[common],
+                       help="текстовый отчёт по готовому ролику: знак, склейки, "
+                            "попадание кадра в текст")
+    a.add_argument("--fast", action="store_true",
+                   help="только сходимость, покрытие и знак — без разбора "
+                        "клипов и без CLIP")
+    a.set_defaults(func=cmd_audit)
+
+    m = sub.add_parser("marks", parents=[common],
+                       help="убрать из кадра надпись или водяной знак")
+    m.add_argument("file", help="файл клипа или картинки")
+    m.add_argument("--box", metavar="x0,y0,x1,y1",
+                   help="рамка в долях кадра")
+    m.add_argument("--знак", action="store_true",
+                   help="снять водяной знак генератора (рамка не нужна)")
+    m.add_argument("--альфа", type=float,
+                   help="для знака: сила накладки вручную; по умолчанию "
+                        "считается по самим кадрам")
+    m.add_argument("--затиранием", action="store_true",
+                   help="для знака: замазать заплаткой, не снимая накладку")
+    m.add_argument("--приём", choices=("сглаживание", "затирание"),
+                   default="сглаживание",
+                   help="сглаживание для табличек и щитов, затирание для "
+                        "надписи на ровной стене и для крупного текста")
+    m.add_argument("--контраст", type=float, default=0.07,
+                   help="для сглаживания: меньше — сильнее гасит")
+    m.add_argument("--сила", type=int, default=1,
+                   help="для сглаживания: размытие перед сжатием контраста")
+    m.add_argument("--порог", type=int, default=20,
+                   help="для затирания: порог отделения букв от фона")
+    m.add_argument("--полярность", choices=("тёмные", "светлые", "любые"),
+                   default="любые", help="для затирания: буквы темнее фона или светлее")
+    m.add_argument("--без-слежения", dest="без_слежения", action="store_true",
+                   help="рамка стоит на месте: для наложенных подписей")
+    m.add_argument("--проба", action="store_true",
+                   help="положить результат рядом, исходник не трогать")
+    m.set_defaults(func=cmd_marks)
 
     v = sub.add_parser("voices", help="найти голос и его voice_id")
     v.add_argument("search", nargs="?", help="что искать: 'russian male narrator'")
